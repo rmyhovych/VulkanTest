@@ -3,22 +3,42 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include <vector>
+
+struct QueueFamilyIndexes
+{
+	uint32_t graphical;
+	uint32_t present;
+};
+
+struct SwapChainSupportDetails
+{
+	VkSurfaceCapabilitiesKHR capabilities;
+	std::vector<VkSurfaceFormatKHR> formats;
+	std::vector<VkPresentModeKHR> presentModes;
+};
+
 class DeviceBuilder
 {
 public:
-	DeviceBuilder(VkInstance instanceHandle, VkSurfaceKHR surfaceHandle, VkPhysicalDevice physicalDevice);
+	DeviceBuilder(VkInstance instanceHandle, VkSurfaceKHR surfaceHandle);
 
-	bool isSuitable();
-	
-	void init();
-	void destroy();
+	bool isSuitable(VkPhysicalDevice physicalDevice);
+
+	QueueFamilyIndexes getQueueFamilyIndexes(VkPhysicalDevice physicalDevice);
+	SwapChainSupportDetails getSwapChainSupportDetails(VkPhysicalDevice physicalDevice);
+
+	VkDevice createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamilyIndexes& familyIndexes);
 
 private:
-	bool getQueueFamilyIndex(VkPhysicalDevice physicalDevice, VkQueueFlagBits queueFlagBit, uint32_t* index);
-	bool isPhysicalDeviceSuitable(VkPhysicalDevice physicalDevice);
+	bool getQueueGraphicsFamilyIndex(VkPhysicalDevice physicalDevice, uint32_t* index);
+	bool getQueuePresentFamilyIndex(VkPhysicalDevice physicalDevice, uint32_t* index);
+
+	void setQueueCreateInfo(VkDeviceQueueCreateInfo& queueCreateInfo, uint32_t index, float priority);
 
 private:
 	VkInstance m_instanceHandle;
-	VkPhysicalDevice m_physicalDevice;
-	VkDevice m_device;
+	VkSurfaceKHR m_surfaceHandle;
+
+	std::vector<const char*> m_deviceExtentions;
 };

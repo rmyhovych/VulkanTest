@@ -2,15 +2,21 @@
 #include "VulkanException.h"
 #include "DeviceBuilder.h"
 
-#include <stdexcept>
 #include <iostream>
+#include <vector>
 
 Window::Window(int width, int heigth) :
 	m_width(width),
 	m_height(heigth),
 
 	m_window(NULL),
-	m_instance(VK_NULL_HANDLE)
+	m_surface(VK_NULL_HANDLE),
+
+	m_instance(VK_NULL_HANDLE),
+	m_device(VK_NULL_HANDLE),
+
+	m_graphicsQueue(VK_NULL_HANDLE),
+	m_presentQueue(VK_NULL_HANDLE)
 {
 }
 
@@ -47,6 +53,13 @@ void Window::init()
 	uint32_t glfwExtentionCount = 0;
 	const char** glfwExtentions = glfwGetRequiredInstanceExtensions(&glfwExtentionCount);
 
+#ifndef NDEBUG
+	for (uint32_t i = 0; i < glfwExtentionCount; i++)
+	{
+		printf("%s\n", glfwExtentions[i]);
+	}
+#endif // !NDEBUG
+
 	createInfo.ppEnabledExtensionNames = glfwExtentions;
 	createInfo.enabledExtensionCount = glfwExtentionCount;
 
@@ -65,7 +78,7 @@ void Window::init()
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-
+	 
 	m_window = glfwCreateWindow(m_width, m_height, "Vulkan", NULL, NULL);
 
 	if (m_window == NULL)
@@ -84,6 +97,8 @@ void Window::init()
 	////// PHYSICAL DEVICE //////
 	/////////////////////////////
 
+	DeviceBuilder deviceBuilder(m_instance, m_surface);
+
 	uint32_t deviceCount = 0;
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, NULL);
 
@@ -92,25 +107,21 @@ void Window::init()
 		throw VulkanException("No devices supporting vulkan found.");
 	}
 
-	VkPhysicalDevice* physicalDevices = new VkPhysicalDevice[deviceCount];
-	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices);
+	std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
+	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
+	
+	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 
-	uint32_t graphicsQueueFamily = 0;
-	uint32_t presentQueueFamily = 0;
-
-	for (int i = 0; i < deviceCount; ++i)
+	VkPhysicalDeviceProperties deviceProperties;
+	for (VkPhysicalDevice& pd : physicalDevices)
 	{
-		VkPhysicalDeviceProperties deviceProperties;
-		vkGetPhysicalDeviceProperties(physicalDevices[i], &deviceProperties);
-
+		vkGetPhysicalDeviceProperties(pd, &deviceProperties);
 		if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 		{
-			DeviceBuilder deviceBuilder(m_instance, physicalDevices[i]);
-
-			if (deviceBuilder.isSuitable(m_surface))
+			if (deviceBuilder.isSuitable(pd))
 			{
-				physicalDevice = physicalDevices[i];
-				break;
+				physicalDevice = pd;
+ 				break;
 			}
 		}
 	}
@@ -118,62 +129,30 @@ void Window::init()
 	if (physicalDevice == VK_NULL_HANDLE)
 	{
 		physicalDevice = physicalDevices[0];
-
-		if (!getQueueFamilyIndex(physicalDevice, VK_QUEUE_GRAPHICS_BIT, &graphicsQueueFamily))
+		
+		if (!deviceBuilder.isSuitable(physicalDevice))
 		{
-			delete[] physicalDevices;
-			physicalDevices = NULL;
-
-			throw VulkanException("No Physical Device supports graphics.");
+			throw VulkanException("No device is suitable.");
 		}
-
 	}
-
-	delete[] physicalDevices;
-	physicalDevices = NULL;
-
 
 
 	////////////////////////////
 	////// LOGICAL DEVICE //////
 	////////////////////////////
 
-	VkDeviceQueueCreateInfo deviceQueueCreateInfo;
-	memset(&deviceQueueCreateInfo, 0, sizeof(VkDeviceQueueCreateInfo));
-
-	deviceQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	deviceQueueCreateInfo.queueFamilyIndex = queueFamilyIndex;
-	deviceQueueCreateInfo.queueCount = 1;
-	float queuePriority = 1.0f;
-	deviceQueueCreateInfo.pQueuePriorities = &queuePriority;
-
-
-	VkPhysicalDeviceFeatures physicalDeviceFeatures;
-	memset(&physicalDeviceFeatures, 0, sizeof(VkPhysicalDeviceFeatures));
-
-
-	VkDeviceCreateInfo deviceCreateInfo;
-	memset(&deviceCreateInfo, 0, sizeof(VkDeviceCreateInfo));
-
-	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	deviceCreateInfo.pQueueCreateInfos = &deviceQueueCreateInfo;
-	deviceCreateInfo.queueCreateInfoCount = 1;
-	deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
-	deviceCreateInfo.enabledExtensionCount = 0;
-	deviceCreateInfo.enabledLayerCount = 0;
-
-	if (vkCreateDevice(m_physicalDevice, &deviceCreateInfo, NULL, &m_device) != VK_SUCCESS)
-	{
-		throw VulkanException("Failed to create device.");
-	}
-
-
+	QueueFamilyIndexes familyIndexes = deviceBuilder.getQueueFamilyIndexes(physicalDevice);
+	m_device = deviceBuilder.createLogicalDevice(physicalDevice, familyIndexes);
 
 	//////////////////////////
 	////// DEVICE QUEUE //////
 	//////////////////////////
 
-	vkGetDeviceQueue(m_device, queueFamilyIndex, 0, &m_graphicsQueue);
+	VkQueue graphicsQueue;
+	vkGetDeviceQueue(m_device, familyIndexes.graphical, 0, &graphicsQueue);
+
+	VkQueue presentQueue;
+	vkGetDeviceQueue(m_device, familyIndexes.present, 0, &presentQueue);
 }
 
 void Window::destroy()

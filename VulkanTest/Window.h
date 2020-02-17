@@ -23,5 +23,11 @@ private:
 	int m_height;
 
 	GLFWwindow* m_window;
+	VkSurfaceKHR m_surface;
+
 	VkInstance m_instance;
+	VkDevice m_device;
+
+	VkQueue m_graphicsQueue;
+	VkQueue m_presentQueue;
 };
