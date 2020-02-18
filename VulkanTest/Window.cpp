@@ -9,7 +9,7 @@ Window::Window(int width, int heigth) :
 	m_width(width),
 	m_height(heigth),
 
-	m_window(NULL),
+	m_window(nullptr),
 	m_surface(VK_NULL_HANDLE),
 
 	m_instance(VK_NULL_HANDLE),
@@ -65,7 +65,7 @@ void Window::init()
 
 	createInfo.enabledLayerCount = 0;
 
-	if (vkCreateInstance(&createInfo, NULL, &m_instance) != VK_SUCCESS)
+	if (vkCreateInstance(&createInfo, nullptr, &m_instance) != VK_SUCCESS)
 	{
 		throw VulkanException("Failed to initialize instance.");
 	}
@@ -79,16 +79,16 @@ void Window::init()
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 	 
-	m_window = glfwCreateWindow(m_width, m_height, "Vulkan", NULL, NULL);
+	m_window = glfwCreateWindow(m_width, m_height, "Vulkan", nullptr, nullptr);
 
-	if (m_window == NULL)
+	if (m_window == nullptr)
 	{
 		glfwTerminate();
 		throw VulkanException("Failed to create GLFW window.");
 	}
 
 
-	if (glfwCreateWindowSurface(m_instance, m_window, NULL, &m_surface) != VK_SUCCESS)
+	if (glfwCreateWindowSurface(m_instance, m_window, nullptr, &m_surface) != VK_SUCCESS)
 	{
 		throw VulkanException("Failed to create window surface.");
 	}
@@ -100,7 +100,7 @@ void Window::init()
 	DeviceBuilder deviceBuilder(m_instance, m_surface);
 
 	uint32_t deviceCount = 0;
-	vkEnumeratePhysicalDevices(m_instance, &deviceCount, NULL);
+	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
 
 	if (deviceCount == 0)
 	{
@@ -159,26 +159,26 @@ void Window::destroy()
 {
 	if (m_device != VK_NULL_HANDLE)
 	{
-		vkDestroyDevice(m_device, NULL);
+		vkDestroyDevice(m_device, nullptr);
 		m_device = VK_NULL_HANDLE;
 	}
 
 	if (m_surface != VK_NULL_HANDLE)
 	{
-		vkDestroySurfaceKHR(m_instance, m_surface, NULL);
+		vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 		m_surface = VK_NULL_HANDLE;
 	}
 
 	if (m_instance != VK_NULL_HANDLE)
 	{
-		vkDestroyInstance(m_instance, NULL);
+		vkDestroyInstance(m_instance, nullptr);
 		m_instance = VK_NULL_HANDLE;
 	}
 
-	if (m_window != NULL)
+	if (m_window != nullptr)
 	{
 		glfwDestroyWindow(m_window);
-		m_window = NULL;
+		m_window = nullptr;
 
 		glfwTerminate();
 	}

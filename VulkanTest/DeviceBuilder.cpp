@@ -13,21 +13,37 @@ DeviceBuilder::DeviceBuilder(VkInstance instanceHandle, VkSurfaceKHR surfaceHand
 
 bool DeviceBuilder::isSuitable(VkPhysicalDevice physicalDevice)
 {
+	bool isPhysicalDeviceSuitable = true;
+
 	uint32_t extentionCount;
-	vkEnumerateDeviceExtensionProperties(physicalDevice, NULL, &extentionCount, NULL);
+	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extentionCount, nullptr);
 
 	std::vector<VkExtensionProperties> extentionProperties(extentionCount);
-	vkEnumerateDeviceExtensionProperties(physicalDevice, NULL, &extentionCount, extentionProperties.data());
+	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extentionCount, extentionProperties.data());
 
 	std::set<std::string> m_extentionsLeft(m_deviceExtentions.begin(), m_deviceExtentions.end());
 	for (VkExtensionProperties& ep : extentionProperties)
 	{
 		m_extentionsLeft.erase(ep.extensionName);
 	}
+	isPhysicalDeviceSuitable = isPhysicalDeviceSuitable && m_extentionsLeft.empty();
 
-	return m_extentionsLeft.empty() && 
-		getQueueGraphicsFamilyIndex(physicalDevice, NULL) && 
-		getQueuePresentFamilyIndex(physicalDevice, NULL);
+	if (isPhysicalDeviceSuitable)
+	{
+		isPhysicalDeviceSuitable = isPhysicalDeviceSuitable &&
+			getQueueGraphicsFamilyIndex(physicalDevice, nullptr) &&
+			getQueuePresentFamilyIndex(physicalDevice, nullptr);
+	}
+
+	if (isPhysicalDeviceSuitable)
+	{ 
+		SwapChainSupportDetails swapChainDetails = getSwapChainSupportDetails(physicalDevice);
+		isPhysicalDeviceSuitable = isPhysicalDeviceSuitable &&
+			!swapChainDetails.formats.empty() &&
+			!swapChainDetails.presentModes.empty();
+	}
+
+	return isPhysicalDeviceSuitable;
 }
 
 QueueFamilyIndexes DeviceBuilder::getQueueFamilyIndexes(VkPhysicalDevice physicalDevice)
@@ -51,6 +67,22 @@ SwapChainSupportDetails DeviceBuilder::getSwapChainSupportDetails(VkPhysicalDevi
 	SwapChainSupportDetails details;
 
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, m_surfaceHandle, &details.capabilities);
+
+	uint32_t nSurfaceFormats = 0;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, m_surfaceHandle, &nSurfaceFormats, nullptr);
+	if (nSurfaceFormats != 0)
+	{
+		details.formats.resize(nSurfaceFormats);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, m_surfaceHandle, &nSurfaceFormats, details.formats.data());
+	}
+	
+	uint32_t nPresentModes = 0;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, m_surfaceHandle, &nPresentModes, nullptr);
+	if (nPresentModes != 0)
+	{
+		details.presentModes.resize(nPresentModes);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, m_surfaceHandle, &nPresentModes, details.presentModes.data());
+	}
 
 	return details;
 }
@@ -77,10 +109,10 @@ VkDevice DeviceBuilder::createLogicalDevice(VkPhysicalDevice physicalDevice, Que
 	deviceCreateInfo.enabledExtensionCount = (uint32_t) m_deviceExtentions.size();
 
 	deviceCreateInfo.enabledLayerCount = 0;
-	deviceCreateInfo.ppEnabledLayerNames = NULL;
+	deviceCreateInfo.ppEnabledLayerNames = nullptr;
 
 	VkDevice device;
-	if (vkCreateDevice(physicalDevice, &deviceCreateInfo, NULL, &device) != VK_SUCCESS)
+	if (vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device) != VK_SUCCESS)
 	{
 		throw VulkanException("Failed to create device.");
 	}
@@ -92,7 +124,7 @@ VkDevice DeviceBuilder::createLogicalDevice(VkPhysicalDevice physicalDevice, Que
 bool DeviceBuilder::getQueueGraphicsFamilyIndex(VkPhysicalDevice physicalDevice, uint32_t* index)
 {
 	uint32_t nQueueFamilies;
-	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &nQueueFamilies, NULL);
+	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &nQueueFamilies, nullptr);
 
 	std::vector<VkQueueFamilyProperties> queueFamilyProperties(nQueueFamilies);
 	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &nQueueFamilies, queueFamilyProperties.data());
@@ -102,7 +134,7 @@ bool DeviceBuilder::getQueueGraphicsFamilyIndex(VkPhysicalDevice physicalDevice,
 	{
 		if (queueFamilyProperties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 		{
-			if (index != NULL)
+			if (index != nullptr)
 			{ 
 				*index = i;
 			}
@@ -117,7 +149,7 @@ bool DeviceBuilder::getQueueGraphicsFamilyIndex(VkPhysicalDevice physicalDevice,
 bool DeviceBuilder::getQueuePresentFamilyIndex(VkPhysicalDevice physicalDevice, uint32_t* index)
 {
 	uint32_t nQueueFamilies;
-	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &nQueueFamilies, NULL);
+	vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &nQueueFamilies, nullptr);
 
 	VkBool32 supported;
 	for (uint32_t i = 0; i < nQueueFamilies; ++i)
@@ -125,7 +157,7 @@ bool DeviceBuilder::getQueuePresentFamilyIndex(VkPhysicalDevice physicalDevice, 
 		vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i, m_surfaceHandle, &supported);
 		if (supported)
 		{
-			if (index != NULL)
+			if (index != nullptr)
 			{
 				*index = i;
 			}
