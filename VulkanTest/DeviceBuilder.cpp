@@ -87,6 +87,49 @@ SwapChainSupportDetails DeviceBuilder::getSwapChainSupportDetails(VkPhysicalDevi
 	return details;
 }
 
+VkSurfaceFormatKHR DeviceBuilder::chooseSwapSurfaceFormat(SwapChainSupportDetails& swapChainDetails)
+{
+	for (VkSurfaceFormatKHR& format : swapChainDetails.formats)
+	{
+		if (format.format == VK_FORMAT_B8G8R8A8_SRGB && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+		{
+			return format;
+		}
+	}
+
+	return swapChainDetails.formats[0];
+}
+
+VkPresentModeKHR DeviceBuilder::chooseSwapPresentMode(SwapChainSupportDetails& swapChainDetails)
+{
+	for (const VkPresentModeKHR& presentMode : swapChainDetails.presentModes)
+	{
+		if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR)
+		{
+			return presentMode;
+		}
+	}
+
+	// always avalible
+	return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+VkExtent2D DeviceBuilder::chooseSwapExtent(SwapChainSupportDetails& swapChainDetails)
+{
+	if (swapChainDetails.capabilities.currentExtent.width != UINT32_MAX)
+	{
+		return swapChainDetails.capabilities.currentExtent;
+	}
+
+	VkExtent2D extentToUse = swapChainDetails.capabilities.minImageExtent;
+
+	// Average extent
+	extentToUse.width = (extentToUse.width + swapChainDetails.capabilities.maxImageExtent.width) / 2;
+	extentToUse.height = (extentToUse.height + swapChainDetails.capabilities.maxImageExtent.height) / 2;
+
+	return extentToUse;
+}
+
 VkDevice DeviceBuilder::createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamilyIndexes& familyIndexes)
 {
 	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos(2);
@@ -118,6 +161,17 @@ VkDevice DeviceBuilder::createLogicalDevice(VkPhysicalDevice physicalDevice, Que
 	}
 
 	return device;
+}
+
+VkSwapchainKHR DeviceBuilder::createSwapchain(VkPhysicalDevice physicalDevice)
+{
+	SwapChainSupportDetails swapChainSupport = getSwapChainSupportDetails(physicalDevice);
+
+	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport);
+	VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport);
+	VkExtent2D extent = chooseSwapExtent(swapChainSupport);
+
+
 }
 
 

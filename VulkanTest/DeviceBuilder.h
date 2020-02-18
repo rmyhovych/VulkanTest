@@ -26,15 +26,21 @@ public:
 	bool isSuitable(VkPhysicalDevice physicalDevice);
 
 	QueueFamilyIndexes getQueueFamilyIndexes(VkPhysicalDevice physicalDevice);
-	SwapChainSupportDetails getSwapChainSupportDetails(VkPhysicalDevice physicalDevice);
-
 	VkDevice createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamilyIndexes& familyIndexes);
+	VkSwapchainKHR createSwapchain(VkPhysicalDevice physicalDevice);
 
 private:
 	bool getQueueGraphicsFamilyIndex(VkPhysicalDevice physicalDevice, uint32_t* index);
 	bool getQueuePresentFamilyIndex(VkPhysicalDevice physicalDevice, uint32_t* index);
 
 	void setQueueCreateInfo(VkDeviceQueueCreateInfo& queueCreateInfo, uint32_t index, float priority);
+
+
+	SwapChainSupportDetails getSwapChainSupportDetails(VkPhysicalDevice physicalDevice);
+
+	VkSurfaceFormatKHR chooseSwapSurfaceFormat(SwapChainSupportDetails& swapChainDetails);
+	VkPresentModeKHR chooseSwapPresentMode(SwapChainSupportDetails& swapChainDetails);
+	VkExtent2D chooseSwapExtent(SwapChainSupportDetails& swapChainDetails);
 
 private:
 	VkInstance m_instanceHandle;
