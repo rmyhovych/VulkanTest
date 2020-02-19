@@ -1,6 +1,5 @@
 #include "Window.h"
 #include "VulkanException.h"
-#include "DeviceBuilder.h"
 
 #include <iostream>
 #include <vector>
@@ -11,12 +10,7 @@ Window::Window(int width, int heigth) :
 
 	m_window(nullptr),
 	m_surface(VK_NULL_HANDLE),
-
-	m_instance(VK_NULL_HANDLE),
-	m_device(VK_NULL_HANDLE),
-
-	m_graphicsQueue(VK_NULL_HANDLE),
-	m_presentQueue(VK_NULL_HANDLE)
+	m_instance(VK_NULL_HANDLE)
 {
 }
 
@@ -136,31 +130,21 @@ void Window::init()
 		}
 	}
 
-
-	////////////////////////////
-	////// LOGICAL DEVICE //////
-	////////////////////////////
-
-	QueueFamilyIndexes familyIndexes = deviceBuilder.getQueueFamilyIndexes(physicalDevice);
-	m_device = deviceBuilder.createLogicalDevice(physicalDevice, familyIndexes);
-
-	//////////////////////////
-	////// DEVICE QUEUE //////
-	//////////////////////////
-
-	VkQueue graphicsQueue;
-	vkGetDeviceQueue(m_device, familyIndexes.graphical, 0, &graphicsQueue);
-
-	VkQueue presentQueue;
-	vkGetDeviceQueue(m_device, familyIndexes.present, 0, &presentQueue);
+	m_deviceConfigurations = deviceBuilder.createDeviceConfigurations(physicalDevice);
 }
 
 void Window::destroy()
 {
-	if (m_device != VK_NULL_HANDLE)
+	if (m_deviceConfigurations.swapchain != VK_NULL_HANDLE)
 	{
-		vkDestroyDevice(m_device, nullptr);
-		m_device = VK_NULL_HANDLE;
+		vkDestroySwapchainKHR(m_deviceConfigurations.logicalDevice, m_deviceConfigurations.swapchain, nullptr);
+		m_deviceConfigurations.swapchain = VK_NULL_HANDLE;
+	}
+
+	if (m_deviceConfigurations.logicalDevice != VK_NULL_HANDLE)
+	{
+		vkDestroyDevice(m_deviceConfigurations.logicalDevice, nullptr);
+		m_deviceConfigurations.logicalDevice = VK_NULL_HANDLE;
 	}
 
 	if (m_surface != VK_NULL_HANDLE)

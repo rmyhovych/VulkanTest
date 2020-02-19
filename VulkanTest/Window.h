@@ -3,6 +3,8 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include "DeviceBuilder.h"
+
 class Window
 {
 public:
@@ -26,8 +28,6 @@ private:
 	VkSurfaceKHR m_surface;
 
 	VkInstance m_instance;
-	VkDevice m_device;
-
-	VkQueue m_graphicsQueue;
-	VkQueue m_presentQueue;
+	
+	DeviceConfigurations m_deviceConfigurations;
 };

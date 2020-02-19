@@ -5,6 +5,7 @@
 
 #include <vector>
 
+
 struct QueueFamilyIndexes
 {
 	uint32_t graphical;
@@ -14,8 +15,21 @@ struct QueueFamilyIndexes
 struct SwapChainSupportDetails
 {
 	VkSurfaceCapabilitiesKHR capabilities;
-	std::vector<VkSurfaceFormatKHR> formats;
-	std::vector<VkPresentModeKHR> presentModes;
+
+	VkSurfaceFormatKHR surfaceFormat;
+	VkPresentModeKHR presentMode;
+	VkExtent2D extent;
+};
+
+struct DeviceConfigurations
+{
+	VkDevice logicalDevice;
+
+	VkQueue graphicsQueue;
+	VkQueue presentQueue;
+
+	VkSwapchainKHR swapchain;
+	std::vector<VkImage> images;
 };
 
 class DeviceBuilder
@@ -25,22 +39,30 @@ public:
 
 	bool isSuitable(VkPhysicalDevice physicalDevice);
 
-	QueueFamilyIndexes getQueueFamilyIndexes(VkPhysicalDevice physicalDevice);
-	VkDevice createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamilyIndexes& familyIndexes);
-	VkSwapchainKHR createSwapchain(VkPhysicalDevice physicalDevice);
+
+	DeviceConfigurations createDeviceConfigurations(VkPhysicalDevice physicalDevice);
 
 private:
+	VkDevice createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamilyIndexes& familyIndexes);
+
+	
+	// QUEUES
+	QueueFamilyIndexes getQueueFamilyIndexes(VkPhysicalDevice physicalDevice);
+	
 	bool getQueueGraphicsFamilyIndex(VkPhysicalDevice physicalDevice, uint32_t* index);
-	bool getQueuePresentFamilyIndex(VkPhysicalDevice physicalDevice, uint32_t* index);
+	bool getQueuePresentFamilyIndex(VkPhysicalDevice physicalDevice, uint32_t* index, uint32_t priorityIndex);
 
 	void setQueueCreateInfo(VkDeviceQueueCreateInfo& queueCreateInfo, uint32_t index, float priority);
 
 
+	// SWAPCHAIN
+	VkSwapchainKHR createSwapchain(const SwapChainSupportDetails& swapChainSupportDetails, VkDevice logicalDevice, QueueFamilyIndexes& familyIndexes) const;
+
 	SwapChainSupportDetails getSwapChainSupportDetails(VkPhysicalDevice physicalDevice);
 
-	VkSurfaceFormatKHR chooseSwapSurfaceFormat(SwapChainSupportDetails& swapChainDetails);
-	VkPresentModeKHR chooseSwapPresentMode(SwapChainSupportDetails& swapChainDetails);
-	VkExtent2D chooseSwapExtent(SwapChainSupportDetails& swapChainDetails);
+	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& swapChainFormats) const;
+	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& presentModes) const;
+	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& swapChainCapabilities) const;
 
 private:
 	VkInstance m_instanceHandle;
