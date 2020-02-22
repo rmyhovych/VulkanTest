@@ -11,6 +11,7 @@ set (
 	Window.h
 	VulkanException.h
 	DeviceBuilder.h
+	DeviceConfigurations.h
 )
 
 set (

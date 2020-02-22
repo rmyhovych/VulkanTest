@@ -135,17 +135,7 @@ void Window::init()
 
 void Window::destroy()
 {
-	if (m_deviceConfigurations.swapchain != VK_NULL_HANDLE)
-	{
-		vkDestroySwapchainKHR(m_deviceConfigurations.logicalDevice, m_deviceConfigurations.swapchain, nullptr);
-		m_deviceConfigurations.swapchain = VK_NULL_HANDLE;
-	}
-
-	if (m_deviceConfigurations.logicalDevice != VK_NULL_HANDLE)
-	{
-		vkDestroyDevice(m_deviceConfigurations.logicalDevice, nullptr);
-		m_deviceConfigurations.logicalDevice = VK_NULL_HANDLE;
-	}
+	m_deviceConfigurations.destroy();
 
 	if (m_surface != VK_NULL_HANDLE)
 	{

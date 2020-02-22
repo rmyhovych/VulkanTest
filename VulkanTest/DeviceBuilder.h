@@ -5,32 +5,8 @@
 
 #include <vector>
 
+#include "DeviceConfigurations.h"
 
-struct QueueFamilyIndexes
-{
-	uint32_t graphical;
-	uint32_t present;
-};
-
-struct SwapChainSupportDetails
-{
-	VkSurfaceCapabilitiesKHR capabilities;
-
-	VkSurfaceFormatKHR surfaceFormat;
-	VkPresentModeKHR presentMode;
-	VkExtent2D extent;
-};
-
-struct DeviceConfigurations
-{
-	VkDevice logicalDevice;
-
-	VkQueue graphicsQueue;
-	VkQueue presentQueue;
-
-	VkSwapchainKHR swapchain;
-	std::vector<VkImage> images;
-};
 
 class DeviceBuilder
 {
@@ -38,7 +14,6 @@ public:
 	DeviceBuilder(VkInstance instanceHandle, VkSurfaceKHR surfaceHandle);
 
 	bool isSuitable(VkPhysicalDevice physicalDevice);
-
 
 	DeviceConfigurations createDeviceConfigurations(VkPhysicalDevice physicalDevice);
 
