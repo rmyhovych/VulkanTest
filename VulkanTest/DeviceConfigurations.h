@@ -35,7 +35,7 @@ struct DeviceConfigurations
 	{
 		if (swapchain != VK_NULL_HANDLE)
 		{
-			vkDestroySwapchainKHR(logicalDevice, m_deviceConfigurations.swapchain, nullptr);
+			vkDestroySwapchainKHR(logicalDevice, swapchain, nullptr);
 			swapchain = VK_NULL_HANDLE;
 		}
 

@@ -47,12 +47,12 @@ void Window::init()
 	uint32_t glfwExtentionCount = 0;
 	const char** glfwExtentions = glfwGetRequiredInstanceExtensions(&glfwExtentionCount);
 
-#ifndef NDEBUG
+#ifdef DEBUG
 	for (uint32_t i = 0; i < glfwExtentionCount; i++)
 	{
 		printf("%s\n", glfwExtentions[i]);
 	}
-#endif // !NDEBUG
+#endif // !DEBUG
 
 	createInfo.ppEnabledExtensionNames = glfwExtentions;
 	createInfo.enabledExtensionCount = glfwExtentionCount;
