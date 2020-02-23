@@ -1,5 +1,7 @@
-set SRC_PATH=%~dp0/Shaders/src
-set BIN_PATH=%~dp0/Shaders/bin
+set SHADERS_PATH=%~dp0/shaders
+
+set SRC_PATH=%SHADERS_PATH%/src
+set BIN_PATH=%SHADERS_PATH%/bin
 
 set FILES=triangle.vert;triangle.frag
 

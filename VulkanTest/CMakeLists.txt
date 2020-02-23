@@ -12,6 +12,8 @@ set (
 	VulkanException.h
 	DeviceBuilder.h
 	DeviceConfigurations.h
+	Shader.h
+	FileReader.h
 )
 
 set (
@@ -21,6 +23,8 @@ set (
 
 	Window.cpp
 	DeviceBuilder.cpp
+	Shader.cpp
+	FileReader.cpp
 )
 
 add_executable (
