@@ -45,3 +45,10 @@ target_link_libraries (
 	${LIBS_PATH}/glfw-3.3.2/lib/glfw3.lib
 	${VULKAN_PATH}/Lib/vulkan-1.lib
 )
+
+add_custom_target(
+	ShaderCompilation 
+	COMMAND cmd /c ${PROJECT_SOURCE_DIR}/shader_compile.bat
+)
+
+add_dependencies(VulkanTest ShaderCompilation)
