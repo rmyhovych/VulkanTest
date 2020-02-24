@@ -12,7 +12,7 @@ set (
 	VulkanException.h
 	DeviceBuilder.h
 	DeviceConfigurations.h
-	Shader.h
+	ShaderBuilder.h
 	FileReader.h
 )
 
@@ -23,7 +23,7 @@ set (
 
 	Window.cpp
 	DeviceBuilder.cpp
-	Shader.cpp
+	ShaderBuilder.cpp
 	FileReader.cpp
 )
 

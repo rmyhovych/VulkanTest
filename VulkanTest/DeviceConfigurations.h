@@ -28,6 +28,8 @@ struct DeviceConfigurations
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;
 
+	SwapChainSupportDetails swapchainSupportDetails;
+
 	VkSwapchainKHR swapchain;
 	std::vector<VkImage> images;
 

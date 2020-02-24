@@ -1,5 +1,6 @@
 #include "Window.h"
 #include "VulkanException.h"
+#include "ShaderBuilder.h"
 
 #include <iostream>
 #include <vector>
@@ -27,8 +28,7 @@ void Window::init()
 	////// INSTANCE //////
 	//////////////////////
 
-	VkApplicationInfo appInfo;
-	memset(&appInfo, 0, sizeof(VkApplicationInfo));
+	VkApplicationInfo appInfo = {};
 
 	appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	appInfo.pApplicationName = "Vulkan Test";
@@ -38,8 +38,7 @@ void Window::init()
 	appInfo.apiVersion = VK_API_VERSION_1_0;
 
 
-	VkInstanceCreateInfo createInfo;
-	memset(&createInfo, 0, sizeof(VkInstanceCreateInfo));
+	VkInstanceCreateInfo createInfo = {};
 
 	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	createInfo.pApplicationInfo = &appInfo;
@@ -131,6 +130,9 @@ void Window::init()
 	}
 
 	m_deviceConfigurations = deviceBuilder.createDeviceConfigurations(physicalDevice);
+
+	ShaderBuilder shaderBuilder(m_deviceConfigurations);
+	shaderBuilder.createGraphicsPipeline("shaders/bin/triangle.vert.spv", "shaders/bin/triangle.frag.spv");
 }
 
 void Window::destroy()

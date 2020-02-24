@@ -79,7 +79,8 @@ DeviceConfigurations DeviceBuilder::createDeviceConfigurations(VkPhysicalDevice 
 	vkGetDeviceQueue(configurations.logicalDevice, queueFamilyIndexes.present, 0, &configurations.presentQueue);
 
 	SwapChainSupportDetails swapChainSupportDetails = getSwapChainSupportDetails(physicalDevice);
-	configurations.swapchain = createSwapchain(swapChainSupportDetails, configurations.logicalDevice, queueFamilyIndexes);	
+	configurations.swapchainSupportDetails = swapChainSupportDetails;
+	configurations.swapchain = createSwapchain(configurations.swapchainSupportDetails, configurations.logicalDevice, queueFamilyIndexes);
 
 	uint32_t nImages = 0;
 	vkGetSwapchainImagesKHR(configurations.logicalDevice, configurations.swapchain, &nImages, nullptr);
@@ -169,16 +170,13 @@ VkDevice DeviceBuilder::createLogicalDevice(VkPhysicalDevice physicalDevice, Que
 	setQueueCreateInfo(queueCreateInfos[0], familyIndexes.graphical, 1.0f);
 	setQueueCreateInfo(queueCreateInfos[1], familyIndexes.present, 1.0f);
 
-	VkDeviceCreateInfo deviceCreateInfo;
-	memset(&deviceCreateInfo, 0, sizeof(VkDeviceCreateInfo));
-
+	VkDeviceCreateInfo deviceCreateInfo = {};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
 	deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
 	deviceCreateInfo.queueCreateInfoCount = queueCreateInfos.size();
 
-	VkPhysicalDeviceFeatures physicalDeviceFeatures;
-	memset(&physicalDeviceFeatures, 0, sizeof(VkPhysicalDeviceFeatures));
+	VkPhysicalDeviceFeatures physicalDeviceFeatures = {};
 	deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
 
 	deviceCreateInfo.ppEnabledExtensionNames = m_deviceExtentions.data();
@@ -207,8 +205,7 @@ VkSwapchainKHR DeviceBuilder::createSwapchain(const SwapChainSupportDetails& swa
 		nImages = swapChainSupportDetails.capabilities.maxImageCount;
 	}
 
-	VkSwapchainCreateInfoKHR createInfo;
-	memset(&createInfo, 0, sizeof(VkSwapchainCreateInfoKHR));
+	VkSwapchainCreateInfoKHR createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 	createInfo.surface = m_surfaceHandle;
 	createInfo.minImageCount = nImages;
@@ -311,7 +308,6 @@ bool DeviceBuilder::getQueuePresentFamilyIndex(VkPhysicalDevice physicalDevice, 
 
 void DeviceBuilder::setQueueCreateInfo(VkDeviceQueueCreateInfo& queueCreateInfo, uint32_t index, float priority)
 {
-	memset(&queueCreateInfo, 0, sizeof(VkDeviceQueueCreateInfo));
 
 	queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 	queueCreateInfo.queueFamilyIndex = index;

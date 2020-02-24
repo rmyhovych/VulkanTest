@@ -3,7 +3,6 @@
 #include <iostream>
 #include <vector>
 
-#include "Shader.h"
 #include "Window.h"
 
 int main()

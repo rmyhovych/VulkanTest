@@ -5,18 +5,20 @@
 
 #include <vector>
 
+#include "DeviceConfigurations.h"
+
 class ShaderBuilder
 {
 public:
-	ShaderBuilder(VkDevice device);
+	ShaderBuilder(DeviceConfigurations& deviceConfigurations);
 	
-	std::vector<VkPipelineShaderStageCreateInfo> createPipeline(const char* vertexPath, const char* fragmentPath);
+	void createGraphicsPipeline(const char* vertexPath, const char* fragmentPath);
 
 private:
 	VkShaderModule createShaderModule(const char* shaderPath);
 	VkPipelineShaderStageCreateInfo getCreateShaderPipelineInfo(VkShaderModule shaderModule, VkShaderStageFlagBits shaderStage);
 
 private:
-	VkDevice m_device;
+	DeviceConfigurations& m_deviceConfigurations;
 };
 
