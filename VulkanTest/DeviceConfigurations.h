@@ -35,16 +35,7 @@ struct DeviceConfigurations
 
 	void destroy()
 	{
-		if (swapchain != VK_NULL_HANDLE)
-		{
-			vkDestroySwapchainKHR(logicalDevice, swapchain, nullptr);
-			swapchain = VK_NULL_HANDLE;
-		}
-
-		if (logicalDevice != VK_NULL_HANDLE)
-		{
-			vkDestroyDevice(logicalDevice, nullptr);
-			logicalDevice = VK_NULL_HANDLE;
-		}
+		vkDestroySwapchainKHR(logicalDevice, swapchain, nullptr);
+		vkDestroyDevice(logicalDevice, nullptr);
 	}
 };

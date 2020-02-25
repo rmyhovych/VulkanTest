@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 
 #include "DeviceBuilder.h"
+#include "PipelineBuilder.h"
 
 class Window
 {
@@ -30,4 +31,5 @@ private:
 	VkInstance m_instance;
 	
 	DeviceConfigurations m_deviceConfigurations;
+	PipelineConfigurations m_pipelineConfigurations;
 };

@@ -1,6 +1,5 @@
 #include "Window.h"
 #include "VulkanException.h"
-#include "ShaderBuilder.h"
 
 #include <iostream>
 #include <vector>
@@ -131,33 +130,22 @@ void Window::init()
 
 	m_deviceConfigurations = deviceBuilder.createDeviceConfigurations(physicalDevice);
 
-	ShaderBuilder shaderBuilder(m_deviceConfigurations);
-	shaderBuilder.createGraphicsPipeline("shaders/bin/triangle.vert.spv", "shaders/bin/triangle.frag.spv");
+	PipelineBuilder pipelineBuilder(m_deviceConfigurations);
+	m_pipelineConfigurations = pipelineBuilder.createGraphicsPipeline("shaders/bin/triangle.vert.spv", "shaders/bin/triangle.frag.spv");
 }
 
 void Window::destroy()
 {
+	m_pipelineConfigurations.destroy(m_deviceConfigurations.logicalDevice);
 	m_deviceConfigurations.destroy();
 
-	if (m_surface != VK_NULL_HANDLE)
-	{
-		vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-		m_surface = VK_NULL_HANDLE;
-	}
+	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+	vkDestroyInstance(m_instance, nullptr);
 
-	if (m_instance != VK_NULL_HANDLE)
-	{
-		vkDestroyInstance(m_instance, nullptr);
-		m_instance = VK_NULL_HANDLE;
-	}
+	glfwDestroyWindow(m_window);
+	m_window = nullptr;
 
-	if (m_window != nullptr)
-	{
-		glfwDestroyWindow(m_window);
-		m_window = nullptr;
-
-		glfwTerminate();
-	}
+	glfwTerminate();
 }
 
 bool Window::isOpen()

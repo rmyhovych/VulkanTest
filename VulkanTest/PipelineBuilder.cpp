@@ -1,15 +1,17 @@
-#include "ShaderBuilder.h"
+#include "PipelineBuilder.h"
 
 #include "FileReader.h"
 #include "VulkanException.h"
 
-ShaderBuilder::ShaderBuilder(DeviceConfigurations& deviceConfigurations) :
+PipelineBuilder::PipelineBuilder(DeviceConfigurations& deviceConfigurations) :
 	m_deviceConfigurations(deviceConfigurations)
 {
 }
 
-void ShaderBuilder::createGraphicsPipeline(const char* vertexPath, const char* fragmentPath)
+PipelineConfigurations PipelineBuilder::createGraphicsPipeline(const char* vertexPath, const char* fragmentPath)
 {
+	PipelineConfigurations pipelineConfigurations;
+
 	VkShaderModule vertexModule = createShaderModule(vertexPath);
 	VkShaderModule fragmentModule = createShaderModule(fragmentPath);
 	
@@ -110,14 +112,17 @@ void ShaderBuilder::createGraphicsPipeline(const char* vertexPath, const char* f
 	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
 	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
 
-	VkPipelineLayout pipelineLayout;
-	if (vkCreatePipelineLayout(m_deviceConfigurations.logicalDevice, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout) != VK_SUCCESS)
+	if (vkCreatePipelineLayout(m_deviceConfigurations.logicalDevice, &pipelineLayoutCreateInfo, nullptr, &pipelineConfigurations.pipelineLayout) != VK_SUCCESS)
 	{
 		throw VulkanException("Failed to create pipeline layout.");;
 	}
 
 
-	// RENDER PASS
+
+	/////////////////////////
+	////// RENDER PASS //////
+	/////////////////////////
+
 	VkAttachmentDescription colorAttachment = {};
 	colorAttachment.format = m_deviceConfigurations.swapchainSupportDetails.surfaceFormat.format;
 	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -128,20 +133,63 @@ void ShaderBuilder::createGraphicsPipeline(const char* vertexPath, const char* f
 	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
+	VkAttachmentReference colorAttachmentReference = {};
+	colorAttachmentReference.attachment = 0;
+	colorAttachmentReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subpass = {};
+	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass.colorAttachmentCount = 1;
+	subpass.pColorAttachments = &colorAttachmentReference;
+
 	VkRenderPassCreateInfo renderPassCreateInfo = {};
 	renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	renderPassCreateInfo.attachmentCount = 1;
+	renderPassCreateInfo.pAttachments = &colorAttachment;
+	renderPassCreateInfo.subpassCount = 1;
+	renderPassCreateInfo.pSubpasses = &subpass;
+
+	if (vkCreateRenderPass(m_deviceConfigurations.logicalDevice, &renderPassCreateInfo, nullptr, &pipelineConfigurations.renderPass) != VK_SUCCESS)
+	{
+		throw VulkanException("Failed to create render pass.");
+	}
 
 
-	VkRenderPass renderPass;
+
+	//////////////////////
+	////// PIPELINE //////
+	//////////////////////
 
 	VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
-	graphicsPipelineCreateInfo.sType;
+	graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	graphicsPipelineCreateInfo.stageCount = shaderStages.size();
+	graphicsPipelineCreateInfo.pStages = shaderStages.data();
+	graphicsPipelineCreateInfo.pVertexInputState = &vertexInputCreateInfo;
+	graphicsPipelineCreateInfo.pInputAssemblyState = &inputAssemblyCreateInfo;
+	graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
+	graphicsPipelineCreateInfo.pRasterizationState = &rasterizerCreateInfo;
+	graphicsPipelineCreateInfo.pMultisampleState = &multisamplingCreateInfo;
+	graphicsPipelineCreateInfo.pDepthStencilState = nullptr;
+	graphicsPipelineCreateInfo.pColorBlendState = &colorBlendingCreateInfo;
+	graphicsPipelineCreateInfo.pDynamicState = nullptr;
+	graphicsPipelineCreateInfo.layout = pipelineConfigurations.pipelineLayout;
+	graphicsPipelineCreateInfo.renderPass = pipelineConfigurations.renderPass;
+	graphicsPipelineCreateInfo.subpass = 0;
+	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+	graphicsPipelineCreateInfo.basePipelineIndex = -1;
+
+	if (vkCreateGraphicsPipelines(m_deviceConfigurations.logicalDevice, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &pipelineConfigurations.graphicsPipeline) != VK_SUCCESS)
+	{
+		throw VulkanException("Failed to create graphics pipeline.");
+	}
 
 	vkDestroyShaderModule(m_deviceConfigurations.logicalDevice, vertexModule, nullptr);
 	vkDestroyShaderModule(m_deviceConfigurations.logicalDevice, fragmentModule, nullptr);
+
+	return pipelineConfigurations;
 }
 
-VkShaderModule ShaderBuilder::createShaderModule(const char* shaderPath)
+VkShaderModule PipelineBuilder::createShaderModule(const char* shaderPath)
 {
 	std::vector<char> shaderData = FileReader::read(shaderPath);
 
@@ -159,7 +207,7 @@ VkShaderModule ShaderBuilder::createShaderModule(const char* shaderPath)
 	return shaderModule;
 }
 
-VkPipelineShaderStageCreateInfo ShaderBuilder::getCreateShaderPipelineInfo(VkShaderModule shaderModule, enum VkShaderStageFlagBits shaderStage)
+VkPipelineShaderStageCreateInfo PipelineBuilder::getCreateShaderPipelineInfo(VkShaderModule shaderModule, enum VkShaderStageFlagBits shaderStage)
 {
 	VkPipelineShaderStageCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
