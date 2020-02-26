@@ -19,7 +19,7 @@ set (
 set (
 	VulkanTest_SRC
 
-	VulkanTest.cpp
+	main.cpp
 
 	Window.cpp
 	DeviceBuilder.cpp

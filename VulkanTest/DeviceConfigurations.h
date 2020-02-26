@@ -25,6 +25,8 @@ struct DeviceConfigurations
 {
 	VkDevice logicalDevice;
 
+	QueueFamilyIndexes queueFamilyIndexes;
+
 	VkQueue graphicsQueue;
 	VkQueue presentQueue;
 
@@ -32,10 +34,25 @@ struct DeviceConfigurations
 
 	VkSwapchainKHR swapchain;
 	std::vector<VkImage> images;
+	std::vector<VkImageView> imageViews;
 
 	void destroy()
 	{
-		vkDestroySwapchainKHR(logicalDevice, swapchain, nullptr);
-		vkDestroyDevice(logicalDevice, nullptr);
+		for (VkImageView imageView : imageViews)
+		{
+			vkDestroyImageView(logicalDevice, imageView, nullptr);
+		}
+		imageViews.resize(0);
+
+		if (swapchain != VK_NULL_HANDLE)
+		{
+			vkDestroySwapchainKHR(logicalDevice, swapchain, nullptr);
+			swapchain = VK_NULL_HANDLE;
+		}
+		if (logicalDevice != VK_NULL_HANDLE)
+		{
+			vkDestroyDevice(logicalDevice, nullptr);
+			logicalDevice = VK_NULL_HANDLE;
+		}
 	}
 };

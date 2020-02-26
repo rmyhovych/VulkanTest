@@ -16,7 +16,7 @@ int main()
 
 	while (window.isOpen()) 
 	{
-		window.swapBuffers();
+		window.draw();
 	}
 
 	window.destroy();

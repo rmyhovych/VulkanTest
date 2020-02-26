@@ -72,20 +72,26 @@ DeviceConfigurations DeviceBuilder::createDeviceConfigurations(VkPhysicalDevice 
 {
 	DeviceConfigurations configurations;
 
-	QueueFamilyIndexes queueFamilyIndexes = getQueueFamilyIndexes(physicalDevice);	
-	configurations.logicalDevice = createLogicalDevice(physicalDevice, queueFamilyIndexes);
+	// Device
+	configurations.queueFamilyIndexes = getQueueFamilyIndexes(physicalDevice);
+	configurations.logicalDevice = createLogicalDevice(physicalDevice, configurations.queueFamilyIndexes);
 	
-	vkGetDeviceQueue(configurations.logicalDevice, queueFamilyIndexes.graphical, 0, &configurations.graphicsQueue);
-	vkGetDeviceQueue(configurations.logicalDevice, queueFamilyIndexes.present, 0, &configurations.presentQueue);
+	// Queues
+	vkGetDeviceQueue(configurations.logicalDevice, configurations.queueFamilyIndexes.graphical, 0, &configurations.graphicsQueue);
+	vkGetDeviceQueue(configurations.logicalDevice, configurations.queueFamilyIndexes.present, 0, &configurations.presentQueue);
 
-	SwapChainSupportDetails swapChainSupportDetails = getSwapChainSupportDetails(physicalDevice);
-	configurations.swapchainSupportDetails = swapChainSupportDetails;
-	configurations.swapchain = createSwapchain(configurations.swapchainSupportDetails, configurations.logicalDevice, queueFamilyIndexes);
+	// Swapchain
+	configurations.swapchainSupportDetails = getSwapChainSupportDetails(physicalDevice);
+	configurations.swapchain = createSwapchain(configurations.swapchainSupportDetails, configurations.logicalDevice, configurations.queueFamilyIndexes);
 
+	// Images
 	uint32_t nImages = 0;
 	vkGetSwapchainImagesKHR(configurations.logicalDevice, configurations.swapchain, &nImages, nullptr);
 	configurations.images.resize(nImages);
 	vkGetSwapchainImagesKHR(configurations.logicalDevice, configurations.swapchain, &nImages, configurations.images.data());
+
+	// Image Views
+	createImageViews(configurations);
 
 	return configurations;
 }
@@ -162,6 +168,39 @@ VkExtent2D DeviceBuilder::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& swapC
 	extentToUse.height = (extentToUse.height + swapChainCapabilities.maxImageExtent.height) / 2;
 
 	return extentToUse;
+}
+
+void DeviceBuilder::createImageViews(DeviceConfigurations& configurations) const
+{
+	configurations.imageViews.resize(configurations.images.size());
+
+	for (int i = configurations.imageViews.size() - 1; i >= 0; --i)
+	{
+		VkImageViewCreateInfo createInfo = {};
+		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		createInfo.image = configurations.images[i];
+
+		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		createInfo.format = configurations.swapchainSupportDetails.surfaceFormat.format;
+		
+		createInfo.components = { 
+			VK_COMPONENT_SWIZZLE_IDENTITY,
+			VK_COMPONENT_SWIZZLE_IDENTITY,
+			VK_COMPONENT_SWIZZLE_IDENTITY,
+			VK_COMPONENT_SWIZZLE_IDENTITY
+		};
+
+		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		createInfo.subresourceRange.baseMipLevel = 0;
+		createInfo.subresourceRange.levelCount = 1;
+		createInfo.subresourceRange.baseArrayLayer = 0;
+		createInfo.subresourceRange.layerCount = 1;
+
+		if (vkCreateImageView(configurations.logicalDevice, &createInfo, nullptr, &configurations.imageViews[i]) != VK_SUCCESS)
+		{
+			throw VulkanException("Failed to create image view.");
+		}
+	}	
 }
 
 VkDevice DeviceBuilder::createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamilyIndexes& familyIndexes)

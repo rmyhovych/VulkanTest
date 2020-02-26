@@ -3,6 +3,8 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include <vector>
+
 #include "DeviceBuilder.h"
 #include "PipelineBuilder.h"
 
@@ -19,7 +21,7 @@ public:
 	void destroy();
 
 	bool isOpen();
-	void swapBuffers();
+	void draw();
 
 private:
 	int m_width;
@@ -32,4 +34,9 @@ private:
 	
 	DeviceConfigurations m_deviceConfigurations;
 	PipelineConfigurations m_pipelineConfigurations;
+
+	std::vector<VkFramebuffer> m_framebuffers;
+
+	VkCommandPool m_commandPool;
+	std::vector<VkCommandBuffer> m_commandBuffers;
 };

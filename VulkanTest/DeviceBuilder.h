@@ -39,6 +39,8 @@ private:
 	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& presentModes) const;
 	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& swapChainCapabilities) const;
 
+	void createImageViews(DeviceConfigurations& configurations) const;
+
 private:
 	VkInstance m_instanceHandle;
 	VkSurfaceKHR m_surfaceHandle;
