@@ -13,7 +13,10 @@ Window::Window(int width, int heigth) :
 	m_surface(VK_NULL_HANDLE),
 	m_instance(VK_NULL_HANDLE),
 
-	m_commandPool(VK_NULL_HANDLE)
+	m_commandPool(VK_NULL_HANDLE),
+
+	m_semaphoreImageAvailable(VK_NULL_HANDLE),
+	m_semaphoreRenderFinished(VK_NULL_HANDLE)
 {
 }
 
@@ -204,7 +207,7 @@ void Window::init()
 		throw VulkanException("Failed to allocate command buffers.");
 	}
 
-
+	
 
 	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
 	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -240,14 +243,35 @@ void Window::init()
 
 
 	
-	///////////////////////////////
-	////// RENDER PASS START //////
-	///////////////////////////////
+	////////////////////////
+	////// SEMAPHORES //////
+	////////////////////////
 
+	VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	if (vkCreateSemaphore(m_deviceConfigurations.logicalDevice, &semaphoreCreateInfo, nullptr, &m_semaphoreImageAvailable) != VK_SUCCESS ||
+		vkCreateSemaphore(m_deviceConfigurations.logicalDevice, &semaphoreCreateInfo, nullptr, &m_semaphoreRenderFinished) != VK_SUCCESS)
+	{
+		throw VulkanException("Failed to create semaphores.");
+	}
+
+	
 }
 
 void Window::destroy()
 {
+	if (m_semaphoreImageAvailable != VK_NULL_HANDLE)
+	{
+		vkDestroySemaphore(m_deviceConfigurations.logicalDevice, m_semaphoreImageAvailable, nullptr);
+		m_semaphoreImageAvailable = VK_NULL_HANDLE;
+	}
+	if (m_semaphoreRenderFinished != VK_NULL_HANDLE)
+	{
+		vkDestroySemaphore(m_deviceConfigurations.logicalDevice, m_semaphoreRenderFinished, nullptr);
+		m_semaphoreRenderFinished = VK_NULL_HANDLE;
+	}
+
 	if (m_commandPool != VK_NULL_HANDLE)
 	{
 		vkDestroyCommandPool(m_deviceConfigurations.logicalDevice, m_commandPool, nullptr);
@@ -293,5 +317,36 @@ void Window::draw()
 {
 	glfwPollEvents();
 
+	uint32_t imageIndex;
+	vkAcquireNextImageKHR(m_deviceConfigurations.logicalDevice, m_deviceConfigurations.swapchain, UINT64_MAX, 
+		m_semaphoreImageAvailable, VK_NULL_HANDLE, &imageIndex);
 
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	VkPipelineStageFlags waitFlag = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &m_semaphoreImageAvailable;
+	submitInfo.pWaitDstStageMask = &waitFlag;
+
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &m_commandBuffers[imageIndex];
+
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &m_semaphoreRenderFinished;
+
+	if (vkQueueSubmit(m_deviceConfigurations.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
+	{
+		throw VulkanException("Failed to submit draw command buffer.");
+	}
+
+	VkPresentInfoKHR presentInfo = {};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = &m_semaphoreRenderFinished;
+
+	presentInfo.swapchainCount = 1;
+	presentInfo.pSwapchains = &m_deviceConfigurations.swapchain;
+	presentInfo.pImageIndices = &imageIndex;
+
+	vkQueuePresentKHR(m_deviceConfigurations.presentQueue, &presentInfo);
 }
