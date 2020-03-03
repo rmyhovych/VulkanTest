@@ -4,8 +4,7 @@
 #include <set>
 #include <string>
 
-DeviceBuilder::DeviceBuilder(VkInstance instanceHandle, VkSurfaceKHR surfaceHandle) :
-	m_instanceHandle(instanceHandle),
+DeviceBuilder::DeviceBuilder(VkSurfaceKHR surfaceHandle) :
 	m_surfaceHandle(surfaceHandle)
 {
 	m_deviceExtentions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
@@ -212,8 +211,8 @@ VkDevice DeviceBuilder::createLogicalDevice(VkPhysicalDevice physicalDevice, Que
 	VkDeviceCreateInfo deviceCreateInfo = {};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
+	deviceCreateInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
 	deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
-	deviceCreateInfo.queueCreateInfoCount = queueCreateInfos.size();
 
 	VkPhysicalDeviceFeatures physicalDeviceFeatures = {};
 	deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
@@ -221,8 +220,18 @@ VkDevice DeviceBuilder::createLogicalDevice(VkPhysicalDevice physicalDevice, Que
 	deviceCreateInfo.ppEnabledExtensionNames = m_deviceExtentions.data();
 	deviceCreateInfo.enabledExtensionCount = (uint32_t) m_deviceExtentions.size();
 
+#ifndef NDEBUG
+	const std::vector<const char*> validationLayers = {
+		"VK_LAYER_KHRONOS_validation"
+	};
+
+	deviceCreateInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+	deviceCreateInfo.ppEnabledLayerNames = validationLayers.data();
+
+#else
 	deviceCreateInfo.enabledLayerCount = 0;
 	deviceCreateInfo.ppEnabledLayerNames = nullptr;
+#endif // !NDEBUG
 
 	VkDevice device;
 	if (vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device) != VK_SUCCESS)

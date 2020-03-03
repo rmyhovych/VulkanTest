@@ -11,7 +11,7 @@
 class DeviceBuilder
 {
 public:
-	DeviceBuilder(VkInstance instanceHandle, VkSurfaceKHR surfaceHandle);
+	DeviceBuilder(VkSurfaceKHR surfaceHandle);
 
 	bool isSuitable(VkPhysicalDevice physicalDevice);
 

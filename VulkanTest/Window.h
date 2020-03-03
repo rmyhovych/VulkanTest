@@ -42,4 +42,8 @@ private:
 
 	VkSemaphore m_semaphoreImageAvailable;
 	VkSemaphore m_semaphoreRenderFinished;
+
+#ifndef NDEBUG
+	VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;
+#endif // !NDEBUG
 };

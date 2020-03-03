@@ -5,6 +5,51 @@
 #include <iostream>
 #include <vector>
 
+#ifndef NDEBUG
+static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+	VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+	VkDebugUtilsMessageTypeFlagsEXT messageType,
+	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+	void* pUserData)
+{
+	if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+	{
+		printf("\n\tVALIDATION LAYER: %s\n", pCallbackData->pMessage);
+	}
+	return VK_FALSE;
+}
+
+VkResult vkCreateDebugUtilsMessengerEXT_PROXY(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
+	const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) 
+{
+
+	PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, 
+		"vkCreateDebugUtilsMessengerEXT");
+
+	if (func != nullptr)
+	{
+		return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
+	}
+
+	return VK_ERROR_EXTENSION_NOT_PRESENT;
+}
+
+void vkDestroyDebugUtilsMessengerEXT_PROXY(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, 
+	const VkAllocationCallbacks* pAllocator)
+{
+	PFN_vkDestroyDebugUtilsMessengerEXT func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance,
+		"vkDestroyDebugUtilsMessengerEXT");
+
+	if (func != nullptr)
+	{
+		func(instance, debugMessenger, pAllocator);
+	}
+}
+
+#endif // !NDEBUG
+
+
+
 Window::Window(int width, int heigth) :
 	m_width(width),
 	m_height(heigth),
@@ -27,11 +72,61 @@ Window::~Window()
 
 void Window::init()
 {
+	///////////////////////////////
+	////// VALIDATION LAYERS //////
+	///////////////////////////////
+
+#ifndef NDEBUG
+	const std::vector<const char*> validationLayers = {
+		"VK_LAYER_KHRONOS_validation"
+	};
+
+	uint32_t layerCount;
+	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+	std::vector<VkLayerProperties> avalibleLayers(layerCount);
+	vkEnumerateInstanceLayerProperties(&layerCount, avalibleLayers.data());
+
+	for (const char* layerName : validationLayers)
+	{
+		bool isLayerFound = false;
+		for (VkLayerProperties& layerProperty : avalibleLayers)
+		{
+			if (strcmp(layerName, layerProperty.layerName) == 0) {
+				isLayerFound = true;
+				break;
+			}
+		}
+
+		if (isLayerFound != true)
+		{
+			throw VulkanException("Unable to find layer.");
+		}
+	}
+#endif // !NDEBUG
+
+
+	////////////////////////////////////////////////////////////////////
 	glfwInit();
 
 	//////////////////////
 	////// INSTANCE //////
 	//////////////////////
+
+#ifndef NDEBUG
+	VkDebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo = {};
+	debugMessengerCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+	debugMessengerCreateInfo.messageSeverity =
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+	debugMessengerCreateInfo.messageType =
+		VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+		VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+		VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+	debugMessengerCreateInfo.pfnUserCallback = debugCallback;
+	debugMessengerCreateInfo.pUserData = nullptr;
+#endif // !NDEBUG
 
 	VkApplicationInfo appInfo = {};
 
@@ -43,32 +138,48 @@ void Window::init()
 	appInfo.apiVersion = VK_API_VERSION_1_0;
 
 
-	VkInstanceCreateInfo createInfo = {};
-
-	createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	createInfo.pApplicationInfo = &appInfo;
+	VkInstanceCreateInfo instanceCreateInfo = {};
+	instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	instanceCreateInfo.pApplicationInfo = &appInfo;
 
 	uint32_t glfwExtentionCount = 0;
 	const char** glfwExtentions = glfwGetRequiredInstanceExtensions(&glfwExtentionCount);
 
-#ifdef DEBUG
-	for (uint32_t i = 0; i < glfwExtentionCount; i++)
-	{
-		printf("%s\n", glfwExtentions[i]);
-	}
-#endif // !DEBUG
+	std::vector<const char*> requiredExtensions(glfwExtentions, glfwExtentions + glfwExtentionCount);
 
-	createInfo.ppEnabledExtensionNames = glfwExtentions;
-	createInfo.enabledExtensionCount = glfwExtentionCount;
+#ifndef NDEBUG
+	requiredExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
-	createInfo.enabledLayerCount = 0;
+	instanceCreateInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+	instanceCreateInfo.ppEnabledLayerNames = validationLayers.data();
 
-	if (vkCreateInstance(&createInfo, nullptr, &m_instance) != VK_SUCCESS)
+	instanceCreateInfo.pNext = &debugMessengerCreateInfo;
+#else
+	instanceCreateInfo.enabledLayerCount = 0;
+	instanceCreateInfo.ppEnabledLayerNames = nullptr;
+#endif // !NDEBUG
+
+	instanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
+	instanceCreateInfo.ppEnabledExtensionNames = requiredExtensions.data();
+
+	if (vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance) != VK_SUCCESS)
 	{
 		throw VulkanException("Failed to initialize instance.");
 	}
 
 
+
+	/////////////////////////////
+	////// DEBUG MESSENGER //////
+	/////////////////////////////
+
+#ifndef NDEBUG
+	if (vkCreateDebugUtilsMessengerEXT_PROXY(m_instance, &debugMessengerCreateInfo, nullptr, &m_debugMessenger) != VK_SUCCESS)
+	{
+		throw VulkanException("Failed to create Debug Messenger.");
+	}
+
+#endif // !NDEBUG
 
 	////////////////////
 	////// WINDOW //////
@@ -95,7 +206,7 @@ void Window::init()
 	////// DEVICE //////
 	////////////////////
 
-	DeviceBuilder deviceBuilder(m_instance, m_surface);
+	DeviceBuilder deviceBuilder(m_surface);
 
 	uint32_t deviceCount = 0;
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
@@ -110,11 +221,16 @@ void Window::init()
 	
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 
+	VkPhysicalDeviceType deviceTypes[] = { 
+		VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
+		VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU
+	};
+
 	VkPhysicalDeviceProperties deviceProperties;
 	for (VkPhysicalDevice& pd : physicalDevices)
 	{
 		vkGetPhysicalDeviceProperties(pd, &deviceProperties);
-		if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+		if (deviceProperties.deviceType == deviceTypes[0])
 		{
 			if (deviceBuilder.isSuitable(pd))
 			{
@@ -152,7 +268,7 @@ void Window::init()
 	//////////////////////////
 
 	m_framebuffers.resize(m_deviceConfigurations.imageViews.size());
-#ifdef DEBUG
+#ifndef NDEBUG
 	printf("Creating [%d] framebuffers.", m_framebuffers.size());
 #endif // DEBUG
 
@@ -219,7 +335,7 @@ void Window::init()
 	renderPassBeginInfo.renderPass = m_pipelineConfigurations.renderPass;
 	renderPassBeginInfo.renderArea.offset = { 0, 0 };
 	renderPassBeginInfo.renderArea.extent = m_deviceConfigurations.swapchainSupportDetails.extent;
-	VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 0.0f };
+	VkClearValue clearColor = { 0.0f, 0.5f, 0.5f, 0.0f };
 	renderPassBeginInfo.clearValueCount = 1;
 	renderPassBeginInfo.pClearValues = &clearColor;
 
@@ -261,6 +377,14 @@ void Window::init()
 
 void Window::destroy()
 {
+#ifndef NDEBUG
+	if (m_debugMessenger != VK_NULL_HANDLE)
+	{
+		vkDestroyDebugUtilsMessengerEXT_PROXY(m_instance, m_debugMessenger, nullptr);
+	}
+#endif // !NDEBUG
+
+
 	if (m_semaphoreImageAvailable != VK_NULL_HANDLE)
 	{
 		vkDestroySemaphore(m_deviceConfigurations.logicalDevice, m_semaphoreImageAvailable, nullptr);
