@@ -90,7 +90,7 @@ PipelineConfigurations PipelineBuilder::createGraphicsPipeline(const char* verte
 
 	VkPipelineColorBlendStateCreateInfo colorBlendingCreateInfo = {};
 	colorBlendingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	colorBlendingCreateInfo.logicOpEnable = VK_TRUE;
+	colorBlendingCreateInfo.logicOpEnable = VK_FALSE;
 	colorBlendingCreateInfo.logicOp = VK_LOGIC_OP_COPY;
 	colorBlendingCreateInfo.attachmentCount = 1;
 	colorBlendingCreateInfo.pAttachments = &colorBlendAttachment;

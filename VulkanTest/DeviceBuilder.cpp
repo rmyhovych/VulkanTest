@@ -204,9 +204,15 @@ void DeviceBuilder::createImageViews(DeviceConfigurations& configurations) const
 
 VkDevice DeviceBuilder::createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamilyIndexes& familyIndexes)
 {
-	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos(2);
-	setQueueCreateInfo(queueCreateInfos[0], familyIndexes.graphical, 1.0f);
-	setQueueCreateInfo(queueCreateInfos[1], familyIndexes.present, 1.0f);
+	std::set<uint32_t> uniqueQueueFamilies = { familyIndexes.graphical, familyIndexes.present };
+	std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+
+	for (uint32_t queueFamilyIndex : uniqueQueueFamilies)
+	{
+		queueCreateInfos.push_back(VkDeviceQueueCreateInfo());
+		setQueueCreateInfo(queueCreateInfos[queueCreateInfos.size() - 1], queueFamilyIndex, 1.0f);
+	}
+
 
 	VkDeviceCreateInfo deviceCreateInfo = {};
 	deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -220,18 +226,8 @@ VkDevice DeviceBuilder::createLogicalDevice(VkPhysicalDevice physicalDevice, Que
 	deviceCreateInfo.ppEnabledExtensionNames = m_deviceExtentions.data();
 	deviceCreateInfo.enabledExtensionCount = (uint32_t) m_deviceExtentions.size();
 
-#ifndef NDEBUG
-	const std::vector<const char*> validationLayers = {
-		"VK_LAYER_KHRONOS_validation"
-	};
-
-	deviceCreateInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-	deviceCreateInfo.ppEnabledLayerNames = validationLayers.data();
-
-#else
 	deviceCreateInfo.enabledLayerCount = 0;
 	deviceCreateInfo.ppEnabledLayerNames = nullptr;
-#endif // !NDEBUG
 
 	VkDevice device;
 	if (vkCreateDevice(physicalDevice, &deviceCreateInfo, nullptr, &device) != VK_SUCCESS)

@@ -181,6 +181,8 @@ void Window::init()
 
 #endif // !NDEBUG
 
+
+
 	////////////////////
 	////// WINDOW //////
 	////////////////////
@@ -201,6 +203,9 @@ void Window::init()
 	{
 		throw VulkanException("Failed to create window surface.");
 	}
+	
+
+
 
 	////////////////////
 	////// DEVICE //////
@@ -348,9 +353,12 @@ void Window::init()
 		}
 
 		renderPassBeginInfo.framebuffer = m_framebuffers[i];
+
 		vkCmdBeginRenderPass(m_commandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineConfigurations.graphicsPipeline);
 		vkCmdDraw(m_commandBuffers[i], 3, 1, 0, 0);
+		vkCmdEndRenderPass(m_commandBuffers[i]);
+
 		if (vkEndCommandBuffer(m_commandBuffers[i]) != VK_SUCCESS)
 		{
 			throw VulkanException("Failed to end command buffer.");
