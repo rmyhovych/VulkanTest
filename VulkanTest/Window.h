@@ -23,6 +23,8 @@ public:
 	bool isOpen();
 	void draw();
 
+	VkDevice getDevice();
+
 private:
 	int m_width;
 	int m_height;
@@ -40,8 +42,10 @@ private:
 	VkCommandPool m_commandPool;
 	std::vector<VkCommandBuffer> m_commandBuffers;
 
-	VkSemaphore m_semaphoreImageAvailable;
-	VkSemaphore m_semaphoreRenderFinished;
+	std::vector<VkSemaphore> m_semaphoresImageAvailable;
+	std::vector<VkSemaphore> m_semaphoresRenderFinished;
+
+	uint32_t m_currentFrameIndex;
 
 #ifndef NDEBUG
 	VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;

@@ -5,6 +5,8 @@
 #include <iostream>
 #include <vector>
 
+const uint32_t MAX_FRAMES_IN_FLIGHT = 2;
+
 #ifndef NDEBUG
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -20,10 +22,10 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 }
 
 VkResult vkCreateDebugUtilsMessengerEXT_PROXY(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
-	const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) 
+	const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger)
 {
 
-	PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, 
+	PFN_vkCreateDebugUtilsMessengerEXT func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance,
 		"vkCreateDebugUtilsMessengerEXT");
 
 	if (func != nullptr)
@@ -34,10 +36,10 @@ VkResult vkCreateDebugUtilsMessengerEXT_PROXY(VkInstance instance, const VkDebug
 	return VK_ERROR_EXTENSION_NOT_PRESENT;
 }
 
-void vkDestroyDebugUtilsMessengerEXT_PROXY(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, 
+void vkDestroyDebugUtilsMessengerEXT_PROXY(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger,
 	const VkAllocationCallbacks* pAllocator)
 {
-	PFN_vkDestroyDebugUtilsMessengerEXT func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance,
+	PFN_vkDestroyDebugUtilsMessengerEXT func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance,
 		"vkDestroyDebugUtilsMessengerEXT");
 
 	if (func != nullptr)
@@ -60,8 +62,10 @@ Window::Window(int width, int heigth) :
 
 	m_commandPool(VK_NULL_HANDLE),
 
-	m_semaphoreImageAvailable(VK_NULL_HANDLE),
-	m_semaphoreRenderFinished(VK_NULL_HANDLE)
+	m_semaphoresImageAvailable(MAX_FRAMES_IN_FLIGHT),
+	m_semaphoresRenderFinished(MAX_FRAMES_IN_FLIGHT),
+
+	m_currentFrameIndex(0)
 {
 }
 
@@ -189,7 +193,7 @@ void Window::init()
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-	 
+
 	m_window = glfwCreateWindow(m_width, m_height, "Vulkan", nullptr, nullptr);
 
 	if (m_window == nullptr)
@@ -203,7 +207,7 @@ void Window::init()
 	{
 		throw VulkanException("Failed to create window surface.");
 	}
-	
+
 
 
 
@@ -223,10 +227,10 @@ void Window::init()
 
 	std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
-	
+
 	VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 
-	VkPhysicalDeviceType deviceTypes[] = { 
+	VkPhysicalDeviceType deviceTypes[] = {
 		VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
 		VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU
 	};
@@ -235,12 +239,12 @@ void Window::init()
 	for (VkPhysicalDevice& pd : physicalDevices)
 	{
 		vkGetPhysicalDeviceProperties(pd, &deviceProperties);
-		if (deviceProperties.deviceType == deviceTypes[0])
+		if (deviceProperties.deviceType == deviceTypes[1])
 		{
 			if (deviceBuilder.isSuitable(pd))
 			{
 				physicalDevice = pd;
- 				break;
+				break;
 			}
 		}
 	}
@@ -248,7 +252,7 @@ void Window::init()
 	if (physicalDevice == VK_NULL_HANDLE)
 	{
 		physicalDevice = physicalDevices[0];
-		
+
 		if (!deviceBuilder.isSuitable(physicalDevice))
 		{
 			throw VulkanException("No device is suitable.");
@@ -267,7 +271,7 @@ void Window::init()
 	m_pipelineConfigurations = shaderBuilder.createGraphicsPipeline("shaders/bin/triangle.vert.spv", "shaders/bin/triangle.frag.spv");
 
 
-	
+
 	//////////////////////////
 	////// FRAMEBUFFERS //////
 	//////////////////////////
@@ -299,7 +303,7 @@ void Window::init()
 	///////////////////////////
 	////// COMMAND POOLS //////
 	///////////////////////////
-	
+
 	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
 	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	commandPoolCreateInfo.queueFamilyIndex = m_deviceConfigurations.queueFamilyIndexes.graphical;
@@ -328,7 +332,7 @@ void Window::init()
 		throw VulkanException("Failed to allocate command buffers.");
 	}
 
-	
+
 
 	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
 	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -366,7 +370,7 @@ void Window::init()
 	}
 
 
-	
+
 	////////////////////////
 	////// SEMAPHORES //////
 	////////////////////////
@@ -374,13 +378,15 @@ void Window::init()
 	VkSemaphoreCreateInfo semaphoreCreateInfo = {};
 	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-	if (vkCreateSemaphore(m_deviceConfigurations.logicalDevice, &semaphoreCreateInfo, nullptr, &m_semaphoreImageAvailable) != VK_SUCCESS ||
-		vkCreateSemaphore(m_deviceConfigurations.logicalDevice, &semaphoreCreateInfo, nullptr, &m_semaphoreRenderFinished) != VK_SUCCESS)
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 	{
-		throw VulkanException("Failed to create semaphores.");
+		if (vkCreateSemaphore(m_deviceConfigurations.logicalDevice, &semaphoreCreateInfo, nullptr, &m_semaphoresImageAvailable[i]) != VK_SUCCESS ||
+			vkCreateSemaphore(m_deviceConfigurations.logicalDevice, &semaphoreCreateInfo, nullptr, &m_semaphoresRenderFinished[i]) != VK_SUCCESS)
+		{
+			throw VulkanException("Failed to create semaphores.");
+		}
 	}
 
-	
 }
 
 void Window::destroy()
@@ -392,52 +398,27 @@ void Window::destroy()
 	}
 #endif // !NDEBUG
 
-
-	if (m_semaphoreImageAvailable != VK_NULL_HANDLE)
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 	{
-		vkDestroySemaphore(m_deviceConfigurations.logicalDevice, m_semaphoreImageAvailable, nullptr);
-		m_semaphoreImageAvailable = VK_NULL_HANDLE;
-	}
-	if (m_semaphoreRenderFinished != VK_NULL_HANDLE)
-	{
-		vkDestroySemaphore(m_deviceConfigurations.logicalDevice, m_semaphoreRenderFinished, nullptr);
-		m_semaphoreRenderFinished = VK_NULL_HANDLE;
+		vkDestroySemaphore(m_deviceConfigurations.logicalDevice, m_semaphoresImageAvailable[i], nullptr);
+		vkDestroySemaphore(m_deviceConfigurations.logicalDevice, m_semaphoresRenderFinished[i], nullptr);
 	}
 
-	if (m_commandPool != VK_NULL_HANDLE)
-	{
-		vkDestroyCommandPool(m_deviceConfigurations.logicalDevice, m_commandPool, nullptr);
-		m_commandPool = VK_NULL_HANDLE;
-	}
+	vkDestroyCommandPool(m_deviceConfigurations.logicalDevice, m_commandPool, nullptr);
 
 	for (VkFramebuffer framebuffer : m_framebuffers)
 	{
 		vkDestroyFramebuffer(m_deviceConfigurations.logicalDevice, framebuffer, nullptr);
 	}
-	m_framebuffers.resize(0);
 
 	m_pipelineConfigurations.destroy(m_deviceConfigurations.logicalDevice);
 	m_deviceConfigurations.destroy();
 
-	if (m_surface != VK_NULL_HANDLE)
-	{
-		vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-		m_surface = VK_NULL_HANDLE;
-	}
+	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+	vkDestroyInstance(m_instance, nullptr);
+	glfwDestroyWindow(m_window);
 
-	if (m_instance != VK_NULL_HANDLE)
-	{
-		vkDestroyInstance(m_instance, nullptr);
-		m_instance = VK_NULL_HANDLE;
-	}
-
-	if (m_window != nullptr)
-	{
-		glfwDestroyWindow(m_window);
-		m_window = nullptr;
-
-		glfwTerminate();
-	}
+	glfwTerminate();
 }
 
 bool Window::isOpen()
@@ -450,21 +431,21 @@ void Window::draw()
 	glfwPollEvents();
 
 	uint32_t imageIndex;
-	vkAcquireNextImageKHR(m_deviceConfigurations.logicalDevice, m_deviceConfigurations.swapchain, UINT64_MAX, 
-		m_semaphoreImageAvailable, VK_NULL_HANDLE, &imageIndex);
+	vkAcquireNextImageKHR(m_deviceConfigurations.logicalDevice, m_deviceConfigurations.swapchain, UINT64_MAX,
+		m_semaphoresImageAvailable[m_currentFrameIndex], VK_NULL_HANDLE, &imageIndex);
 
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	VkPipelineStageFlags waitFlag = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = &m_semaphoreImageAvailable;
+	submitInfo.pWaitSemaphores = &m_semaphoresImageAvailable[m_currentFrameIndex];
 	submitInfo.pWaitDstStageMask = &waitFlag;
 
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &m_commandBuffers[imageIndex];
 
 	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &m_semaphoreRenderFinished;
+	submitInfo.pSignalSemaphores = &m_semaphoresRenderFinished[m_currentFrameIndex];
 
 	if (vkQueueSubmit(m_deviceConfigurations.graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS)
 	{
@@ -474,11 +455,17 @@ void Window::draw()
 	VkPresentInfoKHR presentInfo = {};
 	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pWaitSemaphores = &m_semaphoreRenderFinished;
+	presentInfo.pWaitSemaphores = &m_semaphoresRenderFinished[m_currentFrameIndex];
 
 	presentInfo.swapchainCount = 1;
 	presentInfo.pSwapchains = &m_deviceConfigurations.swapchain;
 	presentInfo.pImageIndices = &imageIndex;
 
 	vkQueuePresentKHR(m_deviceConfigurations.presentQueue, &presentInfo);
+	m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+VkDevice Window::getDevice()
+{
+	return m_deviceConfigurations.logicalDevice;
 }

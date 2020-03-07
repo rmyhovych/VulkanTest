@@ -19,6 +19,7 @@ int main()
 		window.draw();
 	}
 
+	vkDeviceWaitIdle(window.getDevice());
 	window.destroy();
 	return 0;
 }
