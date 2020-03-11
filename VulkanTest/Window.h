@@ -24,6 +24,14 @@ public:
 
 	VkDevice getDevice();
 
+	void setResized();
+
+private:
+	void initSwapChain();
+	void destroySwapChain();
+
+	void recreateSwapChain();
+
 private:
 	// DEVICE
 	bool isDeviceSuitable(VkPhysicalDevice physicalDevice, VkSurfaceKHR surfaceHandle);
@@ -38,7 +46,7 @@ private:
 
 
 	// SWAPCHAIN
-	VkSwapchainKHR createSwapchain(const SwapChainSupportDetails& swapChainSupportDetails, VkDevice logicalDevice, VkSurfaceKHR surfaceHandle, QueueFamilyIndexes& familyIndexes) const;
+	VkSwapchainKHR createSwapchain(VkSwapchainKHR oldSwapchain, const SwapChainSupportDetails& swapChainSupportDetails, VkDevice logicalDevice, VkSurfaceKHR surfaceHandle, QueueFamilyIndexes& familyIndexes) const;
 
 	SwapChainSupportDetails getSwapChainSupportDetails(VkPhysicalDevice physicalDevice, VkSurfaceKHR surfaceHandle, uint32_t width, uint32_t height);
 	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& swapChainFormats);
@@ -57,6 +65,7 @@ private:
 
 	VkInstance m_instance;
 	
+	VkPhysicalDevice m_physicalDevice;
 	VkDevice m_logicalDevice;
 
 	QueueFamilyIndexes m_queueFamilyIndexes;
@@ -84,6 +93,7 @@ private:
 	std::vector<VkFence> m_imagesInFlight;
 
 	uint32_t m_currentFrameIndex;
+	bool m_framebufferResized;
 
 #ifndef NDEBUG
 	VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;

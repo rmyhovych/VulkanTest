@@ -29,21 +29,9 @@ struct PipelineConfigurations
 
 	void destroy(VkDevice device)
 	{
-		if (graphicsPipeline != VK_NULL_HANDLE)
-		{
-			vkDestroyPipeline(device, graphicsPipeline, nullptr);
-			graphicsPipeline = VK_NULL_HANDLE;
-		}
-		if (pipelineLayout != VK_NULL_HANDLE)
-		{
-			vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-			pipelineLayout = VK_NULL_HANDLE;
-		}
-		if (renderPass != VK_NULL_HANDLE)
-		{
-			vkDestroyRenderPass(device, renderPass, nullptr);
-			renderPass = VK_NULL_HANDLE;
-		}
+		vkDestroyPipeline(device, graphicsPipeline, nullptr);
+		vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+		vkDestroyRenderPass(device, renderPass, nullptr);
 	}
 };
 
@@ -51,7 +39,7 @@ class PipelineBuilder
 {
 public:
 	PipelineBuilder(VkDevice logicalDevice, SwapChainSupportDetails& swapchainSupportDetails);
-	
+
 	PipelineConfigurations createGraphicsPipeline(const char* vertexPath, const char* fragmentPath);
 
 private:

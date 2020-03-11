@@ -7,7 +7,7 @@
 
 int main()
 {
-	Window window(1000, 600);
+	Window window(800, 500);
 	window.init();
 
 	glm::mat4 matrix;

@@ -63,6 +63,12 @@ const std::vector<const char*> VALIDATION_LAYERS = {
 #endif // !NDEBUG
 
 
+void framebufferResizeCallback(GLFWwindow* window, int width, int height) 
+{
+	Window* windowObject = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
+	windowObject->setResized();
+}
+
 
 Window::Window(int width, int heigth) :
 	m_width(width),
@@ -73,6 +79,7 @@ Window::Window(int width, int heigth) :
 	m_instance(VK_NULL_HANDLE),
 
 	m_commandPool(VK_NULL_HANDLE),
+	m_swapchain(VK_NULL_HANDLE),
 
 	m_semaphoresImageAvailable(MAX_FRAMES_IN_FLIGHT),
 	m_semaphoresRenderFinished(MAX_FRAMES_IN_FLIGHT),
@@ -202,9 +209,11 @@ void Window::init()
 	////////////////////
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+	glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 	m_window = glfwCreateWindow(m_width, m_height, "Vulkan", nullptr, nullptr);
+	glfwSetWindowUserPointer(m_window, this);
+	glfwSetFramebufferSizeCallback(m_window, framebufferResizeCallback);
 
 	if (m_window == nullptr)
 	{
@@ -266,6 +275,8 @@ void Window::init()
 			throw VulkanException("No device is suitable.");
 		}
 	}
+	m_physicalDevice = physicalDevice;
+
 
 	// Device
 	m_queueFamilyIndexes = getQueueFamilyIndexes(physicalDevice);
@@ -275,9 +286,181 @@ void Window::init()
 	vkGetDeviceQueue(m_logicalDevice, m_queueFamilyIndexes.graphical, 0, &m_graphicsQueue);
 	vkGetDeviceQueue(m_logicalDevice, m_queueFamilyIndexes.present, 0, &m_presentQueue);
 
+
+
+	///////////////////////////
+	////// COMMAND POOLS //////
+	///////////////////////////
+
+	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
+	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	commandPoolCreateInfo.queueFamilyIndex = m_queueFamilyIndexes.graphical;
+	commandPoolCreateInfo.flags = 0;
+
+	if (vkCreateCommandPool(m_logicalDevice, &commandPoolCreateInfo, nullptr, &m_commandPool) != VK_SUCCESS)
+	{
+		throw VulkanException("Failed to create command pool.");
+	}
+
+	initSwapChain();
+
+	////////////////////////
+	////// SEMAPHORES //////
+	////////////////////////
+
+	VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+	{
+		if (vkCreateSemaphore(m_logicalDevice, &semaphoreCreateInfo, nullptr, &m_semaphoresImageAvailable[i]) != VK_SUCCESS ||
+			vkCreateSemaphore(m_logicalDevice, &semaphoreCreateInfo, nullptr, &m_semaphoresRenderFinished[i]) != VK_SUCCESS)
+		{
+			throw VulkanException("Failed to create semaphores.");
+		}
+	}
+
+
+
+	////////////////////
+	////// FENCES //////
+	////////////////////
+
+	VkFenceCreateInfo fenceCreateInfo = {};
+	fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+	{
+		if (vkCreateFence(m_logicalDevice, &fenceCreateInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
+		{
+			throw VulkanException("Failed to create fences.");
+		}
+	}
+
+
+	//// IMAGE FENCES ////
+	m_imagesInFlight.resize(m_images.size(), VK_NULL_HANDLE);
+
+}
+
+void Window::destroy()
+{
+	destroySwapChain();
+
+	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+	{
+		vkDestroySemaphore(m_logicalDevice, m_semaphoresImageAvailable[i], nullptr);
+		vkDestroySemaphore(m_logicalDevice, m_semaphoresRenderFinished[i], nullptr);
+		vkDestroyFence(m_logicalDevice, m_inFlightFences[i], nullptr);
+	}
+
+	vkDestroyCommandPool(m_logicalDevice, m_commandPool, nullptr);
+	vkDestroyDevice(m_logicalDevice, nullptr);
+
+#ifndef NDEBUG
+	vkDestroyDebugUtilsMessengerEXT_PROXY(m_instance, m_debugMessenger, nullptr);
+#endif // !NDEBUG
+
+	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+	vkDestroyInstance(m_instance, nullptr);
+
+	glfwDestroyWindow(m_window);
+	glfwTerminate();
+}
+
+bool Window::isOpen()
+{
+	return glfwWindowShouldClose(m_window) == 0;
+}
+
+void Window::draw()
+{
+	glfwPollEvents();
+	vkWaitForFences(m_logicalDevice, 1, &m_inFlightFences[m_currentFrameIndex], VK_TRUE, UINT64_MAX);
+
+	uint32_t imageIndex;
+	VkResult imageResult = vkAcquireNextImageKHR(m_logicalDevice, m_swapchain, UINT64_MAX,
+		m_semaphoresImageAvailable[m_currentFrameIndex], VK_NULL_HANDLE, &imageIndex);
+
+	if (imageResult == VK_ERROR_OUT_OF_DATE_KHR) 
+	{
+		recreateSwapChain();
+		return;
+	}
+	else if (imageResult != VK_SUCCESS && imageResult != VK_SUBOPTIMAL_KHR)
+	{
+		throw VulkanException("Failed to acquire next image.");
+	}
+
+
+	if (m_imagesInFlight[imageIndex] != VK_NULL_HANDLE)
+	{
+		vkWaitForFences(m_logicalDevice, 1, &m_imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+	}
+
+	m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrameIndex];
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	VkPipelineStageFlags waitFlag = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	submitInfo.waitSemaphoreCount = 1;
+	submitInfo.pWaitSemaphores = &m_semaphoresImageAvailable[m_currentFrameIndex];
+	submitInfo.pWaitDstStageMask = &waitFlag;
+
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &m_commandBuffers[imageIndex];
+
+	submitInfo.signalSemaphoreCount = 1;
+	submitInfo.pSignalSemaphores = &m_semaphoresRenderFinished[m_currentFrameIndex];
+
+	vkResetFences(m_logicalDevice, 1, &m_inFlightFences[m_currentFrameIndex]);
+	if (vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightFences[m_currentFrameIndex]) != VK_SUCCESS)
+	{
+		throw VulkanException("Failed to submit draw command buffer.");
+	}
+
+	VkPresentInfoKHR presentInfo = {};
+	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = &m_semaphoresRenderFinished[m_currentFrameIndex];
+
+	presentInfo.swapchainCount = 1;
+	presentInfo.pSwapchains = &m_swapchain;
+	presentInfo.pImageIndices = &imageIndex;
+
+	imageResult = vkQueuePresentKHR(m_presentQueue, &presentInfo);
+
+	if (imageResult == VK_ERROR_OUT_OF_DATE_KHR || imageResult == VK_SUBOPTIMAL_KHR || m_framebufferResized)
+	{
+		m_framebufferResized = false;
+		recreateSwapChain();
+	}
+	else if (imageResult != VK_SUCCESS)
+	{
+		throw VulkanException("Failder to present image.");
+	}	
+
+	m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+}
+
+VkDevice Window::getDevice()
+{
+	return m_logicalDevice;
+}
+
+void Window::setResized()
+{
+	m_framebufferResized = true;
+}
+
+void Window::initSwapChain()
+{
 	// Swapchain
-	m_swapchainSupportDetails = getSwapChainSupportDetails(physicalDevice, m_surface, m_width, m_height);
-	m_swapchain = createSwapchain(m_swapchainSupportDetails, m_logicalDevice, m_surface, m_queueFamilyIndexes);
+	glfwGetFramebufferSize(m_window, &m_width, &m_height);
+	m_swapchainSupportDetails = getSwapChainSupportDetails(m_physicalDevice, m_surface, m_width, m_height);
+
+	m_swapchain = createSwapchain(VK_NULL_HANDLE, m_swapchainSupportDetails, m_logicalDevice, m_surface, m_queueFamilyIndexes);
 
 	// Images
 	uint32_t nImages = 0;
@@ -304,9 +487,6 @@ void Window::init()
 	//////////////////////////
 
 	m_framebuffers.resize(m_imageViews.size());
-#ifndef NDEBUG
-	printf("Creating [%d] framebuffers.", m_framebuffers.size());
-#endif // DEBUG
 
 	for (int i = m_imageViews.size() - 1; i >= 0; --i)
 	{
@@ -323,22 +503,6 @@ void Window::init()
 		{
 			throw VulkanException("Failed to create framebuffer.");
 		}
-	}
-
-
-
-	///////////////////////////
-	////// COMMAND POOLS //////
-	///////////////////////////
-
-	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
-	commandPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	commandPoolCreateInfo.queueFamilyIndex = m_queueFamilyIndexes.graphical;
-	commandPoolCreateInfo.flags = 0;
-
-	if (vkCreateCommandPool(m_logicalDevice, &commandPoolCreateInfo, nullptr, &m_commandPool) != VK_SUCCESS)
-	{
-		throw VulkanException("Failed to create command pool.");
 	}
 
 
@@ -395,71 +559,16 @@ void Window::init()
 			throw VulkanException("Failed to end command buffer.");
 		}
 	}
-
-
-
-	////////////////////////
-	////// SEMAPHORES //////
-	////////////////////////
-
-	VkSemaphoreCreateInfo semaphoreCreateInfo = {};
-	semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
-	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
-	{
-		if (vkCreateSemaphore(m_logicalDevice, &semaphoreCreateInfo, nullptr, &m_semaphoresImageAvailable[i]) != VK_SUCCESS ||
-			vkCreateSemaphore(m_logicalDevice, &semaphoreCreateInfo, nullptr, &m_semaphoresRenderFinished[i]) != VK_SUCCESS)
-		{
-			throw VulkanException("Failed to create semaphores.");
-		}
-	}
-
-
-
-	////////////////////
-	////// FENCES //////
-	////////////////////
-
-	VkFenceCreateInfo fenceCreateInfo = {};
-	fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-	fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-
-	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
-	{
-		if (vkCreateFence(m_logicalDevice, &fenceCreateInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
-		{
-			throw VulkanException("Failed to create fences.");
-		}
-	}
-
-
-	//// IMAGE FENCES ////
-	m_imagesInFlight.resize(m_images.size(), VK_NULL_HANDLE);
-
 }
 
-void Window::destroy()
+void Window::destroySwapChain()
 {
-#ifndef NDEBUG
-	if (m_debugMessenger != VK_NULL_HANDLE)
-	{
-		vkDestroyDebugUtilsMessengerEXT_PROXY(m_instance, m_debugMessenger, nullptr);
-	}
-#endif // !NDEBUG
-
-	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
-	{
-		vkDestroySemaphore(m_logicalDevice, m_semaphoresImageAvailable[i], nullptr);
-		vkDestroySemaphore(m_logicalDevice, m_semaphoresRenderFinished[i], nullptr);
-		vkDestroyFence(m_logicalDevice, m_inFlightFences[i], nullptr);
-	}
-
-	vkDestroyCommandPool(m_logicalDevice, m_commandPool, nullptr);
-
 	for (VkFramebuffer framebuffer : m_framebuffers)
 	{
 		vkDestroyFramebuffer(m_logicalDevice, framebuffer, nullptr);
 	}
+
+	vkFreeCommandBuffers(m_logicalDevice, m_commandPool, static_cast<uint32_t>(m_commandBuffers.size()), m_commandBuffers.data());
 
 	m_pipelineConfigurations.destroy(m_logicalDevice);
 	for (VkImageView imageView : m_imageViews)
@@ -467,73 +576,24 @@ void Window::destroy()
 		vkDestroyImageView(m_logicalDevice, imageView, nullptr);
 	}
 
+
 	vkDestroySwapchainKHR(m_logicalDevice, m_swapchain, nullptr);
-	vkDestroyDevice(m_logicalDevice, nullptr);
-
-	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-	vkDestroyInstance(m_instance, nullptr);
-	glfwDestroyWindow(m_window);
-
-	glfwTerminate();
 }
 
-bool Window::isOpen()
+void Window::recreateSwapChain()
 {
-	return glfwWindowShouldClose(m_window) == 0;
-}
-
-void Window::draw()
-{
-	glfwPollEvents();
-	vkWaitForFences(m_logicalDevice, 1, &m_inFlightFences[m_currentFrameIndex], VK_TRUE, UINT64_MAX);
-
-	uint32_t imageIndex;
-	vkAcquireNextImageKHR(m_logicalDevice, m_swapchain, UINT64_MAX,
-		m_semaphoresImageAvailable[m_currentFrameIndex], VK_NULL_HANDLE, &imageIndex);
-
-	if (m_imagesInFlight[imageIndex] != VK_NULL_HANDLE)
+	int width = 0, height = 0;
+	glfwGetFramebufferSize(m_window, &width, &height);
+	while (width == 0 || height == 0) 
 	{
-		printf("DONE %d\n", imageIndex);
-		vkWaitForFences(m_logicalDevice, 1, &m_imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+		glfwGetFramebufferSize(m_window, &width, &height);
+		glfwWaitEvents();
 	}
 
-	m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrameIndex];
+	vkDeviceWaitIdle(m_logicalDevice);
 
-	VkSubmitInfo submitInfo = {};
-	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	VkPipelineStageFlags waitFlag = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	submitInfo.waitSemaphoreCount = 1;
-	submitInfo.pWaitSemaphores = &m_semaphoresImageAvailable[m_currentFrameIndex];
-	submitInfo.pWaitDstStageMask = &waitFlag;
-
-	submitInfo.commandBufferCount = 1;
-	submitInfo.pCommandBuffers = &m_commandBuffers[imageIndex];
-
-	submitInfo.signalSemaphoreCount = 1;
-	submitInfo.pSignalSemaphores = &m_semaphoresRenderFinished[m_currentFrameIndex];
-
-	vkResetFences(m_logicalDevice, 1, &m_inFlightFences[m_currentFrameIndex]);
-	if (vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightFences[m_currentFrameIndex]) != VK_SUCCESS)
-	{
-		throw VulkanException("Failed to submit draw command buffer.");
-	}
-
-	VkPresentInfoKHR presentInfo = {};
-	presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	presentInfo.waitSemaphoreCount = 1;
-	presentInfo.pWaitSemaphores = &m_semaphoresRenderFinished[m_currentFrameIndex];
-
-	presentInfo.swapchainCount = 1;
-	presentInfo.pSwapchains = &m_swapchain;
-	presentInfo.pImageIndices = &imageIndex;
-
-	vkQueuePresentKHR(m_presentQueue, &presentInfo);
-	m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
-}
-
-VkDevice Window::getDevice()
-{
-	return m_logicalDevice;
+	destroySwapChain();
+	initSwapChain();
 }
 
 
@@ -727,7 +787,7 @@ VkDevice Window::createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamil
 	deviceCreateInfo.pEnabledFeatures = &physicalDeviceFeatures;
 
 	deviceCreateInfo.ppEnabledExtensionNames = DEVICE_EXTENSIONS.data();
-	deviceCreateInfo.enabledExtensionCount = (uint32_t) DEVICE_EXTENSIONS.size();
+	deviceCreateInfo.enabledExtensionCount = (uint32_t)DEVICE_EXTENSIONS.size();
 
 #ifndef NDEBUG
 	deviceCreateInfo.enabledLayerCount = (uint32_t)VALIDATION_LAYERS.size();
@@ -747,7 +807,7 @@ VkDevice Window::createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamil
 	return device;
 }
 
-VkSwapchainKHR Window::createSwapchain(const SwapChainSupportDetails& swapChainSupportDetails, VkDevice logicalDevice, VkSurfaceKHR surfaceHandle, QueueFamilyIndexes& familyIndexes) const
+VkSwapchainKHR Window::createSwapchain(VkSwapchainKHR oldSwapchain, const SwapChainSupportDetails& swapChainSupportDetails, VkDevice logicalDevice, VkSurfaceKHR surfaceHandle, QueueFamilyIndexes& familyIndexes) const
 {
 	// minImageCount + 1 to avoid waiting
 	uint32_t nImages = swapChainSupportDetails.capabilities.minImageCount + 1;
@@ -785,7 +845,7 @@ VkSwapchainKHR Window::createSwapchain(const SwapChainSupportDetails& swapChainS
 	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 	createInfo.presentMode = swapChainSupportDetails.presentMode;
 	createInfo.clipped = VK_TRUE;
-	createInfo.oldSwapchain = VK_NULL_HANDLE;
+	createInfo.oldSwapchain = oldSwapchain;
 
 	VkSwapchainKHR swapchain;
 	if (vkCreateSwapchainKHR(logicalDevice, &createInfo, nullptr, &swapchain) != VK_SUCCESS)
