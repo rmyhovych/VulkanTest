@@ -10,8 +10,6 @@ set (
 
 	Window.h
 	VulkanException.h
-	DeviceBuilder.h
-	DeviceConfigurations.h
 	PipelineBuilder.h
 	FileReader.h
 )
@@ -22,7 +20,6 @@ set (
 	main.cpp
 
 	Window.cpp
-	DeviceBuilder.cpp
 	PipelineBuilder.cpp
 	FileReader.cpp
 )

@@ -3,8 +3,9 @@
 #include "FileReader.h"
 #include "VulkanException.h"
 
-PipelineBuilder::PipelineBuilder(DeviceConfigurations& deviceConfigurations) :
-	m_deviceConfigurations(deviceConfigurations)
+PipelineBuilder::PipelineBuilder(VkDevice logicalDevice, SwapChainSupportDetails& swapchainSupportDetails) :
+	m_logicalDevice(logicalDevice),
+	m_swapchainSupportDetails(swapchainSupportDetails)
 {
 }
 
@@ -35,14 +36,14 @@ PipelineConfigurations PipelineBuilder::createGraphicsPipeline(const char* verte
 	VkViewport viewport = {};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
-	viewport.width = (float) m_deviceConfigurations.swapchainSupportDetails.extent.width;
-	viewport.height = (float) m_deviceConfigurations.swapchainSupportDetails.extent.height;
+	viewport.width = (float) m_swapchainSupportDetails.extent.width;
+	viewport.height = (float) m_swapchainSupportDetails.extent.height;
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 
 	VkRect2D scissor = {};
 	scissor.offset = { 0, 0 };
-	scissor.extent = m_deviceConfigurations.swapchainSupportDetails.extent;
+	scissor.extent = m_swapchainSupportDetails.extent;
 
 	VkPipelineViewportStateCreateInfo viewportStateCreateInfo = {};
 	viewportStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -112,7 +113,7 @@ PipelineConfigurations PipelineBuilder::createGraphicsPipeline(const char* verte
 	pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
 	pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
 
-	if (vkCreatePipelineLayout(m_deviceConfigurations.logicalDevice, &pipelineLayoutCreateInfo, nullptr, &pipelineConfigurations.pipelineLayout) != VK_SUCCESS)
+	if (vkCreatePipelineLayout(m_logicalDevice, &pipelineLayoutCreateInfo, nullptr, &pipelineConfigurations.pipelineLayout) != VK_SUCCESS)
 	{
 		throw VulkanException("Failed to create pipeline layout.");;
 	}
@@ -124,7 +125,7 @@ PipelineConfigurations PipelineBuilder::createGraphicsPipeline(const char* verte
 	/////////////////////////
 
 	VkAttachmentDescription colorAttachment = {};
-	colorAttachment.format = m_deviceConfigurations.swapchainSupportDetails.surfaceFormat.format;
+	colorAttachment.format = m_swapchainSupportDetails.surfaceFormat.format;
 	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -160,7 +161,7 @@ PipelineConfigurations PipelineBuilder::createGraphicsPipeline(const char* verte
 	renderPassCreateInfo.dependencyCount = 1;
 	renderPassCreateInfo.pDependencies = &dependency;
 
-	if (vkCreateRenderPass(m_deviceConfigurations.logicalDevice, &renderPassCreateInfo, nullptr, &pipelineConfigurations.renderPass) != VK_SUCCESS)
+	if (vkCreateRenderPass(m_logicalDevice, &renderPassCreateInfo, nullptr, &pipelineConfigurations.renderPass) != VK_SUCCESS)
 	{
 		throw VulkanException("Failed to create render pass.");
 	}
@@ -189,13 +190,13 @@ PipelineConfigurations PipelineBuilder::createGraphicsPipeline(const char* verte
 	graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
 	graphicsPipelineCreateInfo.basePipelineIndex = -1;
 
-	if (vkCreateGraphicsPipelines(m_deviceConfigurations.logicalDevice, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &pipelineConfigurations.graphicsPipeline) != VK_SUCCESS)
+	if (vkCreateGraphicsPipelines(m_logicalDevice, VK_NULL_HANDLE, 1, &graphicsPipelineCreateInfo, nullptr, &pipelineConfigurations.graphicsPipeline) != VK_SUCCESS)
 	{
 		throw VulkanException("Failed to create graphics pipeline.");
 	}
 
-	vkDestroyShaderModule(m_deviceConfigurations.logicalDevice, vertexModule, nullptr);
-	vkDestroyShaderModule(m_deviceConfigurations.logicalDevice, fragmentModule, nullptr);
+	vkDestroyShaderModule(m_logicalDevice, vertexModule, nullptr);
+	vkDestroyShaderModule(m_logicalDevice, fragmentModule, nullptr);
 
 	return pipelineConfigurations;
 }
@@ -210,7 +211,7 @@ VkShaderModule PipelineBuilder::createShaderModule(const char* shaderPath)
 	createInfo.pCode = reinterpret_cast<const uint32_t*>(shaderData.data());
 
 	VkShaderModule shaderModule;
-	if (vkCreateShaderModule(m_deviceConfigurations.logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
+	if (vkCreateShaderModule(m_logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS)
 	{
 		throw VulkanException("Couldn't create shader module : " + std::string(shaderPath));
 	}

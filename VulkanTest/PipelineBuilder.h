@@ -5,7 +5,21 @@
 
 #include <vector>
 
-#include "DeviceConfigurations.h"
+struct QueueFamilyIndexes
+{
+	uint32_t graphical;
+	uint32_t present;
+};
+
+struct SwapChainSupportDetails
+{
+	VkSurfaceCapabilitiesKHR capabilities;
+
+	VkSurfaceFormatKHR surfaceFormat;
+	VkPresentModeKHR presentMode;
+	VkExtent2D extent;
+};
+
 
 struct PipelineConfigurations
 {
@@ -36,7 +50,7 @@ struct PipelineConfigurations
 class PipelineBuilder
 {
 public:
-	PipelineBuilder(DeviceConfigurations& deviceConfigurations);
+	PipelineBuilder(VkDevice logicalDevice, SwapChainSupportDetails& swapchainSupportDetails);
 	
 	PipelineConfigurations createGraphicsPipeline(const char* vertexPath, const char* fragmentPath);
 
@@ -45,6 +59,7 @@ private:
 	VkPipelineShaderStageCreateInfo getCreateShaderPipelineInfo(VkShaderModule shaderModule, VkShaderStageFlagBits shaderStage);
 
 private:
-	DeviceConfigurations& m_deviceConfigurations;
+	VkDevice m_logicalDevice;
+	SwapChainSupportDetails& m_swapchainSupportDetails;
 };
 
