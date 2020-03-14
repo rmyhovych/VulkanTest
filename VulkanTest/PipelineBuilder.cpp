@@ -21,12 +21,22 @@ PipelineConfigurations PipelineBuilder::createGraphicsPipeline(const char* verte
 		getCreateShaderPipelineInfo(fragmentModule, VK_SHADER_STAGE_FRAGMENT_BIT)
 	};
 
+
+
+	///////////////////////////////
+	////// VERTEX ATTRIBUTES //////
+	///////////////////////////////
+
+	VkVertexInputBindingDescription bindingDescription = Vertex::getBindingDescription();
+	std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = Vertex::getAttributeDescriptions();
+
 	VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo = {};
 	vertexInputCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertexInputCreateInfo.vertexBindingDescriptionCount = 0;
-	vertexInputCreateInfo.pVertexBindingDescriptions = nullptr;
-	vertexInputCreateInfo.vertexAttributeDescriptionCount = 0;
-	vertexInputCreateInfo.pVertexAttributeDescriptions = nullptr;
+	vertexInputCreateInfo.vertexBindingDescriptionCount = 1;
+	vertexInputCreateInfo.pVertexBindingDescriptions = &bindingDescription;
+	vertexInputCreateInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
+	vertexInputCreateInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+
 
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyCreateInfo = {};
 	inputAssemblyCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;

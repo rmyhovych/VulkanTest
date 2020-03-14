@@ -14,8 +14,6 @@ public:
 		int width = 800,
 		int heigth = 600);
 
-	~Window();
-
 	void init();
 	void destroy();
 
@@ -56,6 +54,15 @@ private:
 	// IMAGE
 	std::vector<VkImageView> createImageViews(VkDevice logicalDevice, std::vector<VkImage>& images, SwapChainSupportDetails& swapchainSupportDetails) const;
 
+
+
+	// MEMORY SHIT
+	uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t memoryTypeFilter, VkMemoryPropertyFlags memoryPropertyFlags);
+	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer* buffer, VkDeviceMemory* bufferMemory);
+
+	void createVertexBuffer();
+
+
 private:
 	int m_width;
 	int m_height;
@@ -94,6 +101,12 @@ private:
 
 	uint32_t m_currentFrameIndex;
 	bool m_framebufferResized;
+
+
+	std::vector<Vertex> m_vertices;
+	VkBuffer m_vertexBuffer;
+	VkDeviceMemory m_vertexBufferMemory;
+
 
 #ifndef NDEBUG
 	VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;

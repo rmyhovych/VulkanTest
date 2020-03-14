@@ -63,7 +63,7 @@ const std::vector<const char*> VALIDATION_LAYERS = {
 #endif // !NDEBUG
 
 
-void framebufferResizeCallback(GLFWwindow* window, int width, int height) 
+void framebufferResizeCallback(GLFWwindow* window, int width, int height)
 {
 	Window* windowObject = reinterpret_cast<Window*>(glfwGetWindowUserPointer(window));
 	windowObject->setResized();
@@ -85,13 +85,14 @@ Window::Window(int width, int heigth) :
 	m_semaphoresRenderFinished(MAX_FRAMES_IN_FLIGHT),
 	m_inFlightFences(MAX_FRAMES_IN_FLIGHT),
 
-	m_currentFrameIndex(0)
-{
-}
+	m_currentFrameIndex(0),
 
-Window::~Window()
+	m_vertices({
+		{{0.0f, -0.5f, 0.0f }, {1.0f, 0.0f, 0.0f}},
+		{{0.5f, 0.5f, 0.0f }, {0.0f, 1.0f, 0.0f}},
+		{{-0.5f, 0.5f, 0.0f }, {0.0f, 0.0f, 1.0f}},
+	})
 {
-	destroy();
 }
 
 void Window::init()
@@ -302,7 +303,22 @@ void Window::init()
 		throw VulkanException("Failed to create command pool.");
 	}
 
+
+
+	////////////////////
+	////// BUFFER //////
+	////////////////////
+
+	createVertexBuffer();
+
+
+	///////////////////////
+	////// SWAPCHAIN //////
+	///////////////////////
+
 	initSwapChain();
+
+
 
 	////////////////////////
 	////// SEMAPHORES //////
@@ -348,6 +364,9 @@ void Window::destroy()
 {
 	destroySwapChain();
 
+	vkFreeMemory(m_logicalDevice, m_vertexBufferMemory, nullptr);
+	vkDestroyBuffer(m_logicalDevice, m_vertexBuffer, nullptr);
+
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 	{
 		vkDestroySemaphore(m_logicalDevice, m_semaphoresImageAvailable[i], nullptr);
@@ -383,7 +402,7 @@ void Window::draw()
 	VkResult imageResult = vkAcquireNextImageKHR(m_logicalDevice, m_swapchain, UINT64_MAX,
 		m_semaphoresImageAvailable[m_currentFrameIndex], VK_NULL_HANDLE, &imageIndex);
 
-	if (imageResult == VK_ERROR_OUT_OF_DATE_KHR) 
+	if (imageResult == VK_ERROR_OUT_OF_DATE_KHR)
 	{
 		recreateSwapChain();
 		return;
@@ -439,7 +458,7 @@ void Window::draw()
 	else if (imageResult != VK_SUCCESS)
 	{
 		throw VulkanException("Failder to present image.");
-	}	
+	}
 
 	m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 }
@@ -535,7 +554,7 @@ void Window::initSwapChain()
 	renderPassBeginInfo.renderPass = m_pipelineConfigurations.renderPass;
 	renderPassBeginInfo.renderArea.offset = { 0, 0 };
 	renderPassBeginInfo.renderArea.extent = m_swapchainSupportDetails.extent;
-	VkClearValue clearColor = { 0.0f, 0.5f, 0.5f, 0.0f };
+	VkClearValue clearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
 	renderPassBeginInfo.clearValueCount = 1;
 	renderPassBeginInfo.pClearValues = &clearColor;
 
@@ -551,7 +570,12 @@ void Window::initSwapChain()
 
 		vkCmdBeginRenderPass(m_commandBuffers[i], &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 		vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineConfigurations.graphicsPipeline);
-		vkCmdDraw(m_commandBuffers[i], 3, 1, 0, 0);
+
+		VkBuffer vertexBuffers[] = { m_vertexBuffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(m_commandBuffers[i], 0, 1, vertexBuffers, offsets);
+
+		vkCmdDraw(m_commandBuffers[i], m_vertices.size(), 1, 0, 0);
 		vkCmdEndRenderPass(m_commandBuffers[i]);
 
 		if (vkEndCommandBuffer(m_commandBuffers[i]) != VK_SUCCESS)
@@ -584,7 +608,7 @@ void Window::recreateSwapChain()
 {
 	int width = 0, height = 0;
 	glfwGetFramebufferSize(m_window, &width, &height);
-	while (width == 0 || height == 0) 
+	while (width == 0 || height == 0)
 	{
 		glfwGetFramebufferSize(m_window, &width, &height);
 		glfwWaitEvents();
@@ -763,6 +787,73 @@ std::vector<VkImageView> Window::createImageViews(VkDevice logicalDevice, std::v
 	}
 
 	return imageViews;
+}
+
+uint32_t Window::findMemoryType(VkPhysicalDevice physicalDevice, uint32_t memoryTypeFilter, VkMemoryPropertyFlags memoryPropertyFlags)
+{
+	VkPhysicalDeviceMemoryProperties memoryProperties;
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
+
+	for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; ++i)
+	{
+		if (memoryTypeFilter & (1 << i) && (memoryProperties.memoryTypes[i].propertyFlags & memoryPropertyFlags) == memoryPropertyFlags)
+		{
+			return i;
+		}
+	}
+
+	throw VulkanException("Failed to find suitable memory type.");
+}
+
+void Window::createBuffer(VkDeviceSize size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer* buffer, VkDeviceMemory* bufferMemory)
+{
+	VkBufferCreateInfo bufferCreateInfo = {};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.size = size;
+	bufferCreateInfo.usage = usageFlags;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	if (vkCreateBuffer(m_logicalDevice, &bufferCreateInfo, nullptr, buffer) != VK_SUCCESS)
+	{
+		throw VulkanException("Failed to create buffer");
+	}
+
+	VkMemoryRequirements memoryRequirements;
+	vkGetBufferMemoryRequirements(m_logicalDevice, *buffer, &memoryRequirements);
+
+
+	VkMemoryAllocateInfo memoryAllocateInfo = {};
+	memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	memoryAllocateInfo.allocationSize = memoryRequirements.size;
+	memoryAllocateInfo.memoryTypeIndex = findMemoryType(
+		m_physicalDevice,
+		memoryRequirements.memoryTypeBits,
+		propertyFlags
+	);
+
+	if (vkAllocateMemory(m_logicalDevice, &memoryAllocateInfo, nullptr, bufferMemory) != VK_SUCCESS)
+	{
+		throw VulkanException("Failed to allocate buffer memory.");
+	}
+
+	vkBindBufferMemory(m_logicalDevice, *buffer, *bufferMemory, 0);
+
+}
+
+void Window::createVertexBuffer()
+{
+	VkDeviceSize bufferSize = sizeof(m_vertices[0]) * m_vertices.size();
+
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		&m_vertexBuffer, &m_vertexBufferMemory);
+
+	void* data;
+	vkMapMemory(m_logicalDevice, m_vertexBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, m_vertices.data(), (size_t)bufferSize);
+	vkUnmapMemory(m_logicalDevice, m_vertexBufferMemory);
+
 }
 
 VkDevice Window::createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamilyIndexes& familyIndexes)
