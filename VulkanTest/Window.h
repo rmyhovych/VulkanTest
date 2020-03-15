@@ -63,6 +63,7 @@ private:
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
 	void createVertexBuffer();
+	void createIndexBuffer();
 
 
 private:
@@ -106,9 +107,13 @@ private:
 
 
 	std::vector<Vertex> m_vertices;
+	std::vector<uint16_t> m_indexes;
+
 	VkBuffer m_vertexBuffer;
 	VkDeviceMemory m_vertexBufferMemory;
 
+	VkBuffer m_indexBuffer;
+	VkDeviceMemory m_indexBufferMemory;
 
 #ifndef NDEBUG
 	VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;

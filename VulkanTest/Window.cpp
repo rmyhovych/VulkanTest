@@ -88,10 +88,13 @@ Window::Window(int width, int heigth) :
 	m_currentFrameIndex(0),
 
 	m_vertices({
-		{{0.0f, -0.5f, 0.0f }, {1.0f, 0.0f, 0.0f}},
-		{{0.5f, 0.5f, 0.0f }, {0.0f, 1.0f, 0.0f}},
-		{{-0.5f, 0.5f, 0.0f }, {0.0f, 0.0f, 1.0f}},
-	})
+		{{-0.5f, -0.5f, 0.0f }, {1.0f, 0.0f, 0.0f}},
+		{{0.5f, -0.5f, 0.0f }, {0.0f, 1.0f, 0.0f}},
+		{{0.5f, 0.5f, 0.0f }, {0.0f, 0.0f, 1.0f}},
+		{{-0.5f, 0.5f, 0.0f }, {1.0f, 1.0f, 1.0f}},
+	}),
+
+	m_indexes({0, 1, 2, 0, 2, 3})
 {
 }
 
@@ -310,6 +313,7 @@ void Window::init()
 	////////////////////
 
 	createVertexBuffer();
+	createIndexBuffer();
 
 
 	///////////////////////
@@ -366,6 +370,9 @@ void Window::destroy()
 
 	vkFreeMemory(m_logicalDevice, m_vertexBufferMemory, nullptr);
 	vkDestroyBuffer(m_logicalDevice, m_vertexBuffer, nullptr);
+
+	vkDestroyBuffer(m_logicalDevice, m_indexBuffer, nullptr);
+	vkFreeMemory(m_logicalDevice, m_indexBufferMemory, nullptr);
 
 	for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 	{
@@ -574,8 +581,9 @@ void Window::initSwapChain()
 		VkBuffer vertexBuffers[] = { m_vertexBuffer };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(m_commandBuffers[i], 0, 1, vertexBuffers, offsets);
+		vkCmdBindIndexBuffer(m_commandBuffers[i], m_indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-		vkCmdDraw(m_commandBuffers[i], m_vertices.size(), 1, 0, 0);
+		vkCmdDrawIndexed(m_commandBuffers[i], (uint32_t) m_indexes.size(), 1, 0, 0, 0);
 		vkCmdEndRenderPass(m_commandBuffers[i]);
 
 		if (vkEndCommandBuffer(m_commandBuffers[i]) != VK_SUCCESS)
@@ -712,7 +720,7 @@ VkSurfaceFormatKHR Window::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFo
 {
 	for (const VkSurfaceFormatKHR& format : swapChainFormats)
 	{
-		if (format.format == VK_FORMAT_B8G8R8A8_SRGB && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+		if (format.format == VK_FORMAT_B8G8R8A8_UNORM && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
 		{
 			return format;
 		}
@@ -902,6 +910,31 @@ void Window::createVertexBuffer()
 	vkDestroyBuffer(m_logicalDevice, stagingBuffer, nullptr);
 	vkFreeMemory(m_logicalDevice, stagingBufferMemory, nullptr);
 
+}
+
+void Window::createIndexBuffer()
+{
+	VkDeviceSize bufferSize = sizeof(m_indexes[0]) * m_indexes.size();
+	
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		&stagingBuffer, &stagingBufferMemory);
+
+	void* data;
+	vkMapMemory(m_logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
+	memcpy(data, m_indexes.data(), (size_t)bufferSize);
+	vkUnmapMemory(m_logicalDevice, stagingBufferMemory);
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &m_indexBuffer, &m_indexBufferMemory);
+
+	copyBuffer(stagingBuffer, m_indexBuffer, bufferSize);
+
+	vkDestroyBuffer(m_logicalDevice, stagingBuffer, nullptr);
+	vkFreeMemory(m_logicalDevice, stagingBufferMemory, nullptr);
 }
 
 VkDevice Window::createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamilyIndexes& familyIndexes)
