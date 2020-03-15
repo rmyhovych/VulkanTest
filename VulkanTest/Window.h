@@ -90,8 +90,8 @@ private:
 	void createDevice();
 	void createSwapChain();
 
-	void createRenderPass();
 	void createGraphicsPipeline(const char* vertexPath, const char* fragmentPath);
+	void createRenderPass();
 	void createDescriptorSetLayout();
 
 	void createFramebuffers();
@@ -100,6 +100,7 @@ private:
 	void createVertexBuffer();
 	void createIndexBuffer();
 	void createUniformBuffers();
+	void createDescriptorPool();
 
 	void createCommandBuffers();
 	void createSyncObjects();

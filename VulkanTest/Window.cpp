@@ -93,9 +93,9 @@ Window::Window(int width, int heigth) :
 		{{0.5f, -0.5f, 0.0f }, {0.0f, 1.0f, 0.0f}},
 		{{0.5f, 0.5f, 0.0f }, {0.0f, 0.0f, 1.0f}},
 		{{-0.5f, 0.5f, 0.0f }, {1.0f, 1.0f, 1.0f}},
-	}),
+		}),
 
-	m_indexes({0, 1, 2, 0, 2, 3})
+		m_indexes({ 0, 1, 2, 0, 2, 3 })
 {
 }
 
@@ -144,10 +144,11 @@ void Window::init()
 
 	createFramebuffers();
 	createCommandPool();
-	
+
 	createVertexBuffer();
 	createIndexBuffer();
 	createUniformBuffers();
+	createDescriptorPool();
 	createCommandBuffers();
 	createSyncObjects();
 }
@@ -217,6 +218,19 @@ void Window::draw()
 	}
 
 	m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrameIndex];
+
+	/////////////////////////////////
+	UniformBufferObject ubo = {};
+	ubo.model = glm::mat4(1);
+	ubo.view = m_camera.getView();
+	ubo.projection = m_camera.getProjection();
+	ubo.projection[1][1] *= -1;
+
+	void* data;
+	vkMapMemory(m_logicalDevice, m_uniformBuffersMemory[imageIndex], 0, sizeof(ubo), 0, &data);
+	memcpy(data, &ubo, sizeof(ubo));
+	vkUnmapMemory(m_logicalDevice, m_uniformBuffersMemory[imageIndex]);
+	/////////////////////////////////
 
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -367,17 +381,13 @@ void Window::createWindow()
 
 void Window::createDevice()
 {
-	////////////////////
-	////// DEVICE //////
-	////////////////////
-
 	uint32_t deviceCount = 0;
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
 
 	if (deviceCount == 0)
 	{
 		throw VulkanException("No devices supporting vulkan found.");
-}
+	}
 
 	std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
 	vkEnumeratePhysicalDevices(m_instance, &deviceCount, physicalDevices.data());
@@ -735,6 +745,13 @@ void Window::recreateSwapChain()
 
 	cleanupSwapChain();
 	createSwapChain();
+	m_imageViews = createImageViews(m_logicalDevice, m_images, m_swapchainSupportDetails);
+	createRenderPass();
+	createGraphicsPipeline("shaders/bin/triangle.vert.spv", "shaders/bin/triangle.frag.spv");
+
+	createFramebuffers();
+	createUniformBuffers();
+	createCommandBuffers();
 }
 
 
@@ -875,27 +892,28 @@ std::vector<VkImageView> Window::createImageViews(VkDevice logicalDevice, std::v
 {
 	std::vector<VkImageView> imageViews(images.size());
 
+	VkImageViewCreateInfo createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+
+	createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	createInfo.format = swapchainSupportDetails.surfaceFormat.format;
+
+	createInfo.components = {
+		VK_COMPONENT_SWIZZLE_IDENTITY,
+		VK_COMPONENT_SWIZZLE_IDENTITY,
+		VK_COMPONENT_SWIZZLE_IDENTITY,
+		VK_COMPONENT_SWIZZLE_IDENTITY
+	};
+
+	createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	createInfo.subresourceRange.baseMipLevel = 0;
+	createInfo.subresourceRange.levelCount = 1;
+	createInfo.subresourceRange.baseArrayLayer = 0;
+	createInfo.subresourceRange.layerCount = 1;
+
 	for (int i = imageViews.size() - 1; i >= 0; --i)
 	{
-		VkImageViewCreateInfo createInfo = {};
-		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		createInfo.image = images[i];
-
-		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		createInfo.format = swapchainSupportDetails.surfaceFormat.format;
-
-		createInfo.components = {
-			VK_COMPONENT_SWIZZLE_IDENTITY,
-			VK_COMPONENT_SWIZZLE_IDENTITY,
-			VK_COMPONENT_SWIZZLE_IDENTITY,
-			VK_COMPONENT_SWIZZLE_IDENTITY
-		};
-
-		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		createInfo.subresourceRange.baseMipLevel = 0;
-		createInfo.subresourceRange.levelCount = 1;
-		createInfo.subresourceRange.baseArrayLayer = 0;
-		createInfo.subresourceRange.layerCount = 1;
 
 		if (vkCreateImageView(logicalDevice, &createInfo, nullptr, &imageViews[i]) != VK_SUCCESS)
 		{
@@ -1024,7 +1042,7 @@ void Window::createVertexBuffer()
 void Window::createIndexBuffer()
 {
 	VkDeviceSize bufferSize = sizeof(m_indexes[0]) * m_indexes.size();
-	
+
 	VkBuffer stagingBuffer;
 	VkDeviceMemory stagingBufferMemory;
 
@@ -1059,6 +1077,11 @@ void Window::createUniformBuffers()
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			&m_uniformBuffers[i], &m_uniformBuffersMemory[i]);
 	}
+
+}
+
+void Window::createDescriptorPool()
+{
 
 }
 
