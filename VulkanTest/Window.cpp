@@ -840,19 +840,67 @@ void Window::createBuffer(VkDeviceSize size, VkBufferUsageFlags usageFlags, VkMe
 
 }
 
+void Window::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+{
+	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	commandBufferAllocateInfo.commandPool = m_commandPool;
+	commandBufferAllocateInfo.commandBufferCount = 1;
+
+	VkCommandBuffer transferCommandBuffer;
+	vkAllocateCommandBuffers(m_logicalDevice, &commandBufferAllocateInfo, &transferCommandBuffer);
+
+	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	vkBeginCommandBuffer(transferCommandBuffer, &commandBufferBeginInfo);
+
+	VkBufferCopy copyRegion = {};
+	copyRegion.srcOffset = 0;
+	copyRegion.dstOffset = 0;
+	copyRegion.size = size;
+	vkCmdCopyBuffer(transferCommandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+	vkEndCommandBuffer(transferCommandBuffer);
+
+	VkSubmitInfo queueSubmitInfo = {};
+	queueSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	queueSubmitInfo.commandBufferCount = 1;
+	queueSubmitInfo.pCommandBuffers = &transferCommandBuffer;
+
+	vkQueueSubmit(m_graphicsQueue, 1, &queueSubmitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(m_graphicsQueue);
+
+	vkFreeCommandBuffers(m_logicalDevice, m_commandPool, 1, &transferCommandBuffer);
+}
+
 void Window::createVertexBuffer()
 {
 	VkDeviceSize bufferSize = sizeof(m_vertices[0]) * m_vertices.size();
 
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
 
-	createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+	createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		&m_vertexBuffer, &m_vertexBufferMemory);
+		&stagingBuffer, &stagingBufferMemory);
 
 	void* data;
-	vkMapMemory(m_logicalDevice, m_vertexBufferMemory, 0, bufferSize, 0, &data);
+	vkMapMemory(m_logicalDevice, stagingBufferMemory, 0, bufferSize, 0, &data);
 	memcpy(data, m_vertices.data(), (size_t)bufferSize);
-	vkUnmapMemory(m_logicalDevice, m_vertexBufferMemory);
+	vkUnmapMemory(m_logicalDevice, stagingBufferMemory);
+
+
+	createBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		&m_vertexBuffer, &m_vertexBufferMemory);
+
+	copyBuffer(stagingBuffer, m_vertexBuffer, bufferSize);
+
+	vkDestroyBuffer(m_logicalDevice, stagingBuffer, nullptr);
+	vkFreeMemory(m_logicalDevice, stagingBufferMemory, nullptr);
 
 }
 
