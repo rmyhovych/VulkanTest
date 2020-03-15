@@ -4,8 +4,67 @@
 #include <GLFW/glfw3.h>
 
 #include <vector>
+#include <array>
 
-#include "PipelineBuilder.h"
+#include "Camera.h"
+
+struct QueueFamilyIndexes
+{
+	uint32_t graphical;
+	uint32_t present;
+};
+
+struct SwapChainSupportDetails
+{
+	VkSurfaceCapabilitiesKHR capabilities;
+
+	VkSurfaceFormatKHR surfaceFormat;
+	VkPresentModeKHR presentMode;
+	VkExtent2D extent;
+};
+
+
+
+struct UniformBufferObject {
+	glm::mat4 model;
+	glm::mat4 view;
+	glm::mat4 projection;
+};
+
+struct Vertex
+{
+	glm::vec3 position;
+	glm::vec3 color;
+
+	static VkVertexInputBindingDescription getBindingDescription()
+	{
+		VkVertexInputBindingDescription bindingDescription = {};
+		bindingDescription.binding = 0;
+		bindingDescription.stride = sizeof(Vertex);
+		bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		return bindingDescription;
+	}
+
+	static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions()
+	{
+		std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = {};
+
+		// POSITION
+		attributeDescriptions[0].binding = 0;
+		attributeDescriptions[0].location = 0;
+		attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[0].offset = offsetof(Vertex, position);
+
+		// COLOR
+		attributeDescriptions[1].binding = 0;
+		attributeDescriptions[1].location = 1;
+		attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+		return attributeDescriptions;
+	}
+};
 
 class Window
 {
@@ -25,10 +84,32 @@ public:
 	void setResized();
 
 private:
-	void initSwapChain();
-	void destroySwapChain();
+	
+	void createInstance();
+	void createWindow();
+	void createDevice();
+	void createSwapChain();
+
+	void createRenderPass();
+	void createGraphicsPipeline(const char* vertexPath, const char* fragmentPath);
+	void createDescriptorSetLayout();
+
+	void createFramebuffers();
+	void createCommandPool();
+
+	void createVertexBuffer();
+	void createIndexBuffer();
+	void createUniformBuffers();
+
+	void createCommandBuffers();
+	void createSyncObjects();
+
+
+	void cleanupSwapChain();
 
 	void recreateSwapChain();
+
+
 
 private:
 	// DEVICE
@@ -62,13 +143,16 @@ private:
 
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
-	void createVertexBuffer();
-	void createIndexBuffer();
+	
+	VkShaderModule createShaderModule(const char* shaderPath);
 
+	VkPipelineShaderStageCreateInfo getCreateShaderPipelineInfo(VkShaderModule shaderModule, VkShaderStageFlagBits shaderStage);
 
 private:
 	int m_width;
 	int m_height;
+
+	Camera m_camera;
 
 	GLFWwindow* m_window;
 	VkSurfaceKHR m_surface;
@@ -89,7 +173,9 @@ private:
 	std::vector<VkImage> m_images;
 	std::vector<VkImageView> m_imageViews;
 
-	PipelineConfigurations m_pipelineConfigurations;
+	VkRenderPass m_renderPass;
+	VkPipeline m_graphicsPipeline;
+	VkPipelineLayout m_pipelineLayout;
 
 	std::vector<VkFramebuffer> m_framebuffers;
 
@@ -114,6 +200,11 @@ private:
 
 	VkBuffer m_indexBuffer;
 	VkDeviceMemory m_indexBufferMemory;
+
+
+	VkDescriptorSetLayout m_uboDescriptorSetLayout;
+	std::vector<VkBuffer> m_uniformBuffers;
+	std::vector<VkDeviceMemory> m_uniformBuffersMemory;
 
 #ifndef NDEBUG
 	VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;

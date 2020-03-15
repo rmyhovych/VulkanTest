@@ -10,8 +10,8 @@ set (
 
 	Window.h
 	VulkanException.h
-	PipelineBuilder.h
 	FileReader.h
+	Camera.h
 )
 
 set (
@@ -20,8 +20,8 @@ set (
 	main.cpp
 
 	Window.cpp
-	PipelineBuilder.cpp
 	FileReader.cpp
+	Camera.cpp
 )
 
 add_executable (
