@@ -99,7 +99,7 @@ Window::Window(int width, int heigth) :
 		{{-0.5f, 0.5f, 0.0f }, {1.0f, 1.0f, 1.0f}},
 		}),
 
-		m_indexes({ 0, 1, 2, 0, 2, 3 })
+	m_indexes({ 0, 1, 2, 0, 2, 3 })
 {
 }
 
@@ -469,11 +469,47 @@ void Window::createSwapChain()
 
 	m_swapchain = createSwapchain(VK_NULL_HANDLE, m_swapchainSupportDetails, m_logicalDevice, m_surface, m_queueFamilyIndexes);
 
-	// Images
+	// Images TODO
 	uint32_t nImages = 0;
 	vkGetSwapchainImagesKHR(m_logicalDevice, m_swapchain, &nImages, nullptr);
 	m_images.resize(nImages);
 	vkGetSwapchainImagesKHR(m_logicalDevice, m_swapchain, &nImages, m_images.data());
+}
+
+std::vector<VkImageView> Window::createImageViews(VkDevice logicalDevice, std::vector<VkImage>& images, SwapChainSupportDetails& swapchainSupportDetails) const
+{
+	std::vector<VkImageView> imageViews(images.size());
+
+	VkImageViewCreateInfo createInfo = {};
+	createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+
+	createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	createInfo.format = swapchainSupportDetails.surfaceFormat.format;
+
+	createInfo.components = {
+		VK_COMPONENT_SWIZZLE_IDENTITY,
+		VK_COMPONENT_SWIZZLE_IDENTITY,
+		VK_COMPONENT_SWIZZLE_IDENTITY,
+		VK_COMPONENT_SWIZZLE_IDENTITY
+	};
+
+	createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	createInfo.subresourceRange.baseMipLevel = 0;
+	createInfo.subresourceRange.levelCount = 1;
+	createInfo.subresourceRange.baseArrayLayer = 0;
+	createInfo.subresourceRange.layerCount = 1;
+
+	for (int i = imageViews.size() - 1; i >= 0; --i)
+	{
+		createInfo.image = images[i];
+
+		if (vkCreateImageView(logicalDevice, &createInfo, nullptr, &imageViews[i]) != VK_SUCCESS)
+		{
+			throw VulkanException("Failed to create image view.");
+		}
+	}
+
+	return imageViews;
 }
 
 void Window::createRenderPass()
@@ -915,42 +951,6 @@ VkExtent2D Window::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& swapChainCap
 		std::min(swapChainCapabilities.maxImageExtent.height, wantedExtent.height));
 
 	return { 5, 20 };
-}
-
-std::vector<VkImageView> Window::createImageViews(VkDevice logicalDevice, std::vector<VkImage>& images, SwapChainSupportDetails& swapchainSupportDetails) const
-{
-	std::vector<VkImageView> imageViews(images.size());
-
-	VkImageViewCreateInfo createInfo = {};
-	createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-
-	createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	createInfo.format = swapchainSupportDetails.surfaceFormat.format;
-
-	createInfo.components = {
-		VK_COMPONENT_SWIZZLE_IDENTITY,
-		VK_COMPONENT_SWIZZLE_IDENTITY,
-		VK_COMPONENT_SWIZZLE_IDENTITY,
-		VK_COMPONENT_SWIZZLE_IDENTITY
-	};
-
-	createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	createInfo.subresourceRange.baseMipLevel = 0;
-	createInfo.subresourceRange.levelCount = 1;
-	createInfo.subresourceRange.baseArrayLayer = 0;
-	createInfo.subresourceRange.layerCount = 1;
-
-	for (int i = imageViews.size() - 1; i >= 0; --i)
-	{
-		createInfo.image = images[i];
-
-		if (vkCreateImageView(logicalDevice, &createInfo, nullptr, &imageViews[i]) != VK_SUCCESS)
-		{
-			throw VulkanException("Failed to create image view.");
-		}
-	}
-
-	return imageViews;
 }
 
 uint32_t Window::findMemoryType(VkPhysicalDevice physicalDevice, uint32_t memoryTypeFilter, VkMemoryPropertyFlags memoryPropertyFlags)
