@@ -11,7 +11,8 @@ set (
 	Window.h
 	VulkanException.h
 	FileReader.h
-	Camera.h
+	camera/Camera.h
+	camera/FocusedCamera.h
 )
 
 set (
@@ -21,7 +22,8 @@ set (
 
 	Window.cpp
 	FileReader.cpp
-	Camera.cpp
+	camera/Camera.cpp
+	camera/FocusedCamera.cpp
 )
 
 add_executable (

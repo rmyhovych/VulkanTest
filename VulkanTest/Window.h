@@ -6,7 +6,7 @@
 #include <vector>
 #include <array>
 
-#include "Camera.h"
+#include "camera/FocusedCamera.h"
 
 struct QueueFamilyIndexes
 {
@@ -100,7 +100,9 @@ private:
 	void createVertexBuffer();
 	void createIndexBuffer();
 	void createUniformBuffers();
+
 	void createDescriptorPool();
+	void createDescriptorSets();
 
 	void createCommandBuffers();
 	void createSyncObjects();
@@ -153,7 +155,10 @@ private:
 	int m_width;
 	int m_height;
 
-	Camera m_camera;
+	double m_xpos, m_ypos;
+	bool m_isPressed;
+
+	FocusedCamera m_camera;
 
 	GLFWwindow* m_window;
 	VkSurfaceKHR m_surface;
@@ -204,6 +209,9 @@ private:
 
 
 	VkDescriptorSetLayout m_uboDescriptorSetLayout;
+	VkDescriptorPool m_descriptorPool;
+	std::vector<VkDescriptorSet> m_descriptorSets;
+
 	std::vector<VkBuffer> m_uniformBuffers;
 	std::vector<VkDeviceMemory> m_uniformBuffersMemory;
 

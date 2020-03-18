@@ -71,6 +71,10 @@ void framebufferResizeCallback(GLFWwindow* window, int width, int height)
 
 
 Window::Window(int width, int heigth) :
+	m_xpos(0),
+	m_ypos(0),
+	m_isPressed(false),
+
 	m_width(width),
 	m_height(heigth),
 	m_camera(width, heigth),
@@ -149,6 +153,8 @@ void Window::init()
 	createIndexBuffer();
 	createUniformBuffers();
 	createDescriptorPool();
+	createDescriptorSets();
+
 	createCommandBuffers();
 	createSyncObjects();
 }
@@ -194,6 +200,27 @@ bool Window::isOpen()
 
 void Window::draw()
 {
+	double xpos, ypos;
+	glfwGetCursorPos(m_window, &xpos, &ypos);
+
+	bool isPressed = glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
+	if (isPressed && !m_isPressed)
+	{
+		m_xpos = xpos;
+		m_ypos = ypos;
+	}
+
+	m_isPressed = isPressed;
+
+	if (isPressed)
+	{
+		float force = 0.005;
+		m_camera.rotate(force * (xpos - m_xpos), force * (ypos - m_ypos));
+	}
+
+	m_xpos = xpos;
+	m_ypos = ypos;
+
 	glfwPollEvents();
 	vkWaitForFences(m_logicalDevice, 1, &m_inFlightFences[m_currentFrameIndex], VK_TRUE, UINT64_MAX);
 
@@ -447,9 +474,6 @@ void Window::createSwapChain()
 	vkGetSwapchainImagesKHR(m_logicalDevice, m_swapchain, &nImages, nullptr);
 	m_images.resize(nImages);
 	vkGetSwapchainImagesKHR(m_logicalDevice, m_swapchain, &nImages, m_images.data());
-
-
-
 }
 
 void Window::createRenderPass()
@@ -555,7 +579,7 @@ void Window::createGraphicsPipeline(const char* vertexPath, const char* fragment
 	rasterizerCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
 	rasterizerCreateInfo.lineWidth = 1.0f;
 	rasterizerCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizerCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterizerCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	// SHADOW MAPPING SHIT
 	rasterizerCreateInfo.depthBiasEnable = VK_FALSE;
 	rasterizerCreateInfo.depthBiasConstantFactor = 0.0f;
@@ -729,6 +753,8 @@ void Window::cleanupSwapChain()
 		vkDestroyBuffer(m_logicalDevice, m_uniformBuffers[i], nullptr);
 		vkFreeMemory(m_logicalDevice, m_uniformBuffersMemory[i], nullptr);
 	}
+
+	vkDestroyDescriptorPool(m_logicalDevice, m_descriptorPool, nullptr);
 }
 
 void Window::recreateSwapChain()
@@ -751,6 +777,9 @@ void Window::recreateSwapChain()
 
 	createFramebuffers();
 	createUniformBuffers();
+	createDescriptorPool();
+	createDescriptorSets();
+
 	createCommandBuffers();
 }
 
@@ -1082,7 +1111,60 @@ void Window::createUniformBuffers()
 
 void Window::createDescriptorPool()
 {
+	VkDescriptorPoolSize descriptorPoolSize = {};
+	descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorPoolSize.descriptorCount = (uint32_t)m_uniformBuffers.size();
 
+	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
+	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptorPoolCreateInfo.poolSizeCount = 1;
+	descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSize;
+	descriptorPoolCreateInfo.maxSets = (uint32_t)m_uniformBuffers.size();
+	descriptorPoolCreateInfo.flags = 0;
+
+	if (vkCreateDescriptorPool(m_logicalDevice, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
+	{
+		throw VulkanException("Failed to create descriptor pool.");
+	}
+}
+
+void Window::createDescriptorSets()
+{
+	std::vector<VkDescriptorSetLayout> layouts(m_uniformBuffers.size(), m_uboDescriptorSetLayout);
+
+	VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {};
+	descriptorSetAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descriptorSetAllocateInfo.descriptorPool = m_descriptorPool;
+	descriptorSetAllocateInfo.descriptorSetCount = (uint32_t)layouts.size();
+	descriptorSetAllocateInfo.pSetLayouts = layouts.data();
+
+	m_descriptorSets.resize(layouts.size());
+	if (vkAllocateDescriptorSets(m_logicalDevice, &descriptorSetAllocateInfo, m_descriptorSets.data()) != VK_SUCCESS)
+	{
+		throw VulkanException("Failed to allocate descriptor sets.");
+	}
+
+	for (int i = m_descriptorSets.size() - 1; i >= 0; --i)
+	{
+		VkDescriptorBufferInfo descriptorBufferInfo = {};
+		descriptorBufferInfo.buffer = m_uniformBuffers[i];
+		descriptorBufferInfo.offset = 0;
+		descriptorBufferInfo.range = sizeof(UniformBufferObject);
+
+		VkWriteDescriptorSet descriptorWrite = {};
+		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptorWrite.dstSet = m_descriptorSets[i];
+		descriptorWrite.dstBinding = 0;
+		descriptorWrite.dstArrayElement = 0;
+
+		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptorWrite.descriptorCount = 1;
+		descriptorWrite.pBufferInfo = &descriptorBufferInfo;
+		descriptorWrite.pImageInfo = nullptr;
+		descriptorWrite.pTexelBufferView = nullptr;
+
+		vkUpdateDescriptorSets(m_logicalDevice, 1, &descriptorWrite, 0, nullptr);
+	}
 }
 
 void Window::createCommandBuffers()
@@ -1132,6 +1214,7 @@ void Window::createCommandBuffers()
 		vkCmdBindVertexBuffers(m_commandBuffers[i], 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(m_commandBuffers[i], m_indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
+		vkCmdBindDescriptorSets(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSets[i], 0, nullptr);
 		vkCmdDrawIndexed(m_commandBuffers[i], (uint32_t)m_indexes.size(), 1, 0, 0, 0);
 		vkCmdEndRenderPass(m_commandBuffers[i]);
 
