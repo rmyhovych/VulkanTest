@@ -557,6 +557,27 @@ void Window::createRenderPass()
 	}
 }
 
+void Window::createDescriptorSetLayout()
+{
+	VkDescriptorSetLayoutBinding uboLayoutBinding = {};
+	uboLayoutBinding.binding = 0;
+	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboLayoutBinding.descriptorCount = 1;
+	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	uboLayoutBinding.pImmutableSamplers = nullptr;
+
+
+	VkDescriptorSetLayoutCreateInfo descriptorSetCreateInfo = {};
+	descriptorSetCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptorSetCreateInfo.bindingCount = 1;
+	descriptorSetCreateInfo.pBindings = &uboLayoutBinding;
+
+	if (vkCreateDescriptorSetLayout(m_logicalDevice, &descriptorSetCreateInfo, nullptr, &m_uboDescriptorSetLayout) != VK_SUCCESS)
+	{
+		throw VulkanException("Failed to create UBO descriptor set layout.");
+	}
+}
+
 void Window::createGraphicsPipeline(const char* vertexPath, const char* fragmentPath)
 {
 	VkShaderModule vertexModule = createShaderModule(vertexPath);
@@ -706,27 +727,6 @@ void Window::createGraphicsPipeline(const char* vertexPath, const char* fragment
 	vkDestroyShaderModule(m_logicalDevice, fragmentModule, nullptr);
 }
 
-void Window::createDescriptorSetLayout()
-{
-	VkDescriptorSetLayoutBinding uboLayoutBinding = {};
-	uboLayoutBinding.binding = 0;
-	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	uboLayoutBinding.descriptorCount = 1;
-	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-	uboLayoutBinding.pImmutableSamplers = nullptr;
-
-
-	VkDescriptorSetLayoutCreateInfo descriptorSetCreateInfo = {};
-	descriptorSetCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptorSetCreateInfo.bindingCount = 1;
-	descriptorSetCreateInfo.pBindings = &uboLayoutBinding;
-
-	if (vkCreateDescriptorSetLayout(m_logicalDevice, &descriptorSetCreateInfo, nullptr, &m_uboDescriptorSetLayout) != VK_SUCCESS)
-	{
-		throw VulkanException("Failed to create UBO descriptor set layout.");
-	}
-}
-
 void Window::createFramebuffers()
 {
 	m_framebuffers.resize(m_imageViews.size());
@@ -749,8 +749,6 @@ void Window::createFramebuffers()
 	}
 }
 
-
-
 void Window::createCommandPool()
 {
 	VkCommandPoolCreateInfo commandPoolCreateInfo = {};
@@ -762,282 +760,6 @@ void Window::createCommandPool()
 	{
 		throw VulkanException("Failed to create command pool.");
 	}
-}
-
-void Window::cleanupSwapChain()
-{
-	for (VkFramebuffer framebuffer : m_framebuffers)
-	{
-		vkDestroyFramebuffer(m_logicalDevice, framebuffer, nullptr);
-	}
-
-	vkFreeCommandBuffers(m_logicalDevice, m_commandPool, static_cast<uint32_t>(m_commandBuffers.size()), m_commandBuffers.data());
-
-	vkDestroyPipeline(m_logicalDevice, m_graphicsPipeline, nullptr);
-	vkDestroyPipelineLayout(m_logicalDevice, m_pipelineLayout, nullptr);
-	vkDestroyRenderPass(m_logicalDevice, m_renderPass, nullptr);
-
-	for (VkImageView imageView : m_imageViews)
-	{
-		vkDestroyImageView(m_logicalDevice, imageView, nullptr);
-	}
-
-	vkDestroySwapchainKHR(m_logicalDevice, m_swapchain, nullptr);
-
-	for (int i = 0; i < m_uniformBuffers.size(); ++i)
-	{
-		vkDestroyBuffer(m_logicalDevice, m_uniformBuffers[i], nullptr);
-		vkFreeMemory(m_logicalDevice, m_uniformBuffersMemory[i], nullptr);
-	}
-
-	vkDestroyDescriptorPool(m_logicalDevice, m_descriptorPool, nullptr);
-}
-
-void Window::recreateSwapChain()
-{
-	int width = 0, height = 0;
-	glfwGetFramebufferSize(m_window, &width, &height);
-	while (width == 0 || height == 0)
-	{
-		glfwGetFramebufferSize(m_window, &width, &height);
-		glfwWaitEvents();
-	}
-
-	vkDeviceWaitIdle(m_logicalDevice);
-
-	cleanupSwapChain();
-	createSwapChain();
-	m_imageViews = createImageViews(m_logicalDevice, m_images, m_swapchainSupportDetails);
-	createRenderPass();
-	createGraphicsPipeline("shaders/bin/triangle.vert.spv", "shaders/bin/triangle.frag.spv");
-
-	createFramebuffers();
-	createUniformBuffers();
-	createDescriptorPool();
-	createDescriptorSets();
-
-	createCommandBuffers();
-}
-
-
-bool Window::isDeviceSuitable(VkPhysicalDevice physicalDevice, VkSurfaceKHR surfaceHandle)
-{
-	bool isPhysicalDeviceSuitable = true;
-
-	uint32_t extentionCount;
-	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extentionCount, nullptr);
-
-	std::vector<VkExtensionProperties> extentionProperties(extentionCount);
-	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extentionCount, extentionProperties.data());
-
-	std::set<std::string> m_extentionsLeft(DEVICE_EXTENSIONS.begin(), DEVICE_EXTENSIONS.end());
-	for (VkExtensionProperties& ep : extentionProperties)
-	{
-		m_extentionsLeft.erase(ep.extensionName);
-	}
-	isPhysicalDeviceSuitable = isPhysicalDeviceSuitable && m_extentionsLeft.empty();
-
-	if (isPhysicalDeviceSuitable)
-	{
-		isPhysicalDeviceSuitable = isPhysicalDeviceSuitable &&
-			getQueueGraphicsFamilyIndex(physicalDevice, nullptr) &&
-			getQueuePresentFamilyIndex(physicalDevice, m_surface, nullptr, 0);
-	}
-
-	if (isPhysicalDeviceSuitable)
-	{
-		SwapChainSupportDetails swapChainDetails = getSwapChainSupportDetails(physicalDevice, m_surface, m_width, m_height);
-
-		uint32_t nSurfaceFormats = 0;
-		vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surfaceHandle, &nSurfaceFormats, nullptr);
-
-		uint32_t nPresentModes = 0;
-		vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surfaceHandle, &nPresentModes, nullptr);
-
-		isPhysicalDeviceSuitable = isPhysicalDeviceSuitable && nSurfaceFormats != 0 && nPresentModes != 0;
-	}
-
-	return isPhysicalDeviceSuitable;
-}
-
-QueueFamilyIndexes Window::getQueueFamilyIndexes(VkPhysicalDevice physicalDevice)
-{
-	QueueFamilyIndexes familyIndexes = { 0, 0 };
-	if (!getQueueGraphicsFamilyIndex(physicalDevice, &familyIndexes.graphical))
-	{
-		throw VulkanException("Device not suitable.");
-	}
-
-	if (!getQueuePresentFamilyIndex(physicalDevice, m_surface, &familyIndexes.present, familyIndexes.graphical))
-	{
-		throw VulkanException("Device not suitable.");
-	}
-
-	return familyIndexes;
-}
-
-SwapChainSupportDetails Window::getSwapChainSupportDetails(VkPhysicalDevice physicalDevice, VkSurfaceKHR surfaceHandle, uint32_t width, uint32_t height)
-{
-	SwapChainSupportDetails details;
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surfaceHandle, &details.capabilities);
-
-	std::vector<VkSurfaceFormatKHR> swapChainFormats;
-	uint32_t nSurfaceFormats = 0;
-	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surfaceHandle, &nSurfaceFormats, nullptr);
-	if (nSurfaceFormats != 0)
-	{
-		swapChainFormats.resize(nSurfaceFormats);
-		vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surfaceHandle, &nSurfaceFormats, swapChainFormats.data());
-	}
-
-	std::vector<VkPresentModeKHR> presentModes;
-	uint32_t nPresentModes = 0;
-	vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surfaceHandle, &nPresentModes, nullptr);
-	if (nPresentModes != 0)
-	{
-		presentModes.resize(nPresentModes);
-		vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surfaceHandle, &nPresentModes, presentModes.data());
-	}
-
-	details.surfaceFormat = chooseSwapSurfaceFormat(swapChainFormats);
-	details.presentMode = chooseSwapPresentMode(presentModes);
-	details.extent = chooseSwapExtent(details.capabilities, width, height);
-
-	return details;
-}
-
-
-VkSurfaceFormatKHR Window::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& swapChainFormats)
-{
-	for (const VkSurfaceFormatKHR& format : swapChainFormats)
-	{
-		if (format.format == VK_FORMAT_B8G8R8A8_UNORM && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
-		{
-			return format;
-		}
-	}
-
-	return swapChainFormats[0];
-}
-
-VkPresentModeKHR Window::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& presentModes)
-{
-	for (const VkPresentModeKHR& presentMode : presentModes)
-	{
-		if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR)
-		{
-			return presentMode;
-		}
-	}
-
-	// always avalible
-	return VK_PRESENT_MODE_FIFO_KHR;
-}
-
-VkExtent2D Window::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& swapChainCapabilities, uint32_t width, uint32_t height)
-{
-	if (swapChainCapabilities.currentExtent.width != UINT32_MAX)
-	{
-		return swapChainCapabilities.currentExtent;
-	}
-
-	VkExtent2D wantedExtent = { width, height };
-	VkExtent2D extentToUse = {};
-
-	// Average extent
-	extentToUse.width = std::max(swapChainCapabilities.maxImageExtent.width,
-		std::min(swapChainCapabilities.maxImageExtent.width, wantedExtent.width));
-	extentToUse.height = std::max(swapChainCapabilities.maxImageExtent.height,
-		std::min(swapChainCapabilities.maxImageExtent.height, wantedExtent.height));
-
-	return { 5, 20 };
-}
-
-uint32_t Window::findMemoryType(VkPhysicalDevice physicalDevice, uint32_t memoryTypeFilter, VkMemoryPropertyFlags memoryPropertyFlags)
-{
-	VkPhysicalDeviceMemoryProperties memoryProperties;
-	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
-
-	for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; ++i)
-	{
-		if (memoryTypeFilter & (1 << i) && (memoryProperties.memoryTypes[i].propertyFlags & memoryPropertyFlags) == memoryPropertyFlags)
-		{
-			return i;
-		}
-	}
-
-	throw VulkanException("Failed to find suitable memory type.");
-}
-
-void Window::createBuffer(VkDeviceSize size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer* buffer, VkDeviceMemory* bufferMemory)
-{
-	VkBufferCreateInfo bufferCreateInfo = {};
-	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	bufferCreateInfo.size = size;
-	bufferCreateInfo.usage = usageFlags;
-	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	if (vkCreateBuffer(m_logicalDevice, &bufferCreateInfo, nullptr, buffer) != VK_SUCCESS)
-	{
-		throw VulkanException("Failed to create buffer");
-	}
-
-	VkMemoryRequirements memoryRequirements;
-	vkGetBufferMemoryRequirements(m_logicalDevice, *buffer, &memoryRequirements);
-
-
-	VkMemoryAllocateInfo memoryAllocateInfo = {};
-	memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	memoryAllocateInfo.allocationSize = memoryRequirements.size;
-	memoryAllocateInfo.memoryTypeIndex = findMemoryType(
-		m_physicalDevice,
-		memoryRequirements.memoryTypeBits,
-		propertyFlags
-	);
-
-	if (vkAllocateMemory(m_logicalDevice, &memoryAllocateInfo, nullptr, bufferMemory) != VK_SUCCESS)
-	{
-		throw VulkanException("Failed to allocate buffer memory.");
-	}
-
-	vkBindBufferMemory(m_logicalDevice, *buffer, *bufferMemory, 0);
-
-}
-
-void Window::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
-{
-	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	commandBufferAllocateInfo.commandPool = m_commandPool;
-	commandBufferAllocateInfo.commandBufferCount = 1;
-
-	VkCommandBuffer transferCommandBuffer;
-	vkAllocateCommandBuffers(m_logicalDevice, &commandBufferAllocateInfo, &transferCommandBuffer);
-
-	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
-	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-	vkBeginCommandBuffer(transferCommandBuffer, &commandBufferBeginInfo);
-
-	VkBufferCopy copyRegion = {};
-	copyRegion.srcOffset = 0;
-	copyRegion.dstOffset = 0;
-	copyRegion.size = size;
-	vkCmdCopyBuffer(transferCommandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
-
-	vkEndCommandBuffer(transferCommandBuffer);
-
-	VkSubmitInfo queueSubmitInfo = {};
-	queueSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	queueSubmitInfo.commandBufferCount = 1;
-	queueSubmitInfo.pCommandBuffers = &transferCommandBuffer;
-
-	vkQueueSubmit(m_graphicsQueue, 1, &queueSubmitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(m_graphicsQueue);
-
-	vkFreeCommandBuffers(m_logicalDevice, m_commandPool, 1, &transferCommandBuffer);
 }
 
 void Window::createVertexBuffer()
@@ -1272,6 +994,234 @@ void Window::createSyncObjects()
 
 }
 
+
+
+
+
+
+
+
+
+bool Window::isDeviceSuitable(VkPhysicalDevice physicalDevice, VkSurfaceKHR surfaceHandle)
+{
+	bool isPhysicalDeviceSuitable = true;
+
+	uint32_t extentionCount;
+	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extentionCount, nullptr);
+
+	std::vector<VkExtensionProperties> extentionProperties(extentionCount);
+	vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extentionCount, extentionProperties.data());
+
+	std::set<std::string> m_extentionsLeft(DEVICE_EXTENSIONS.begin(), DEVICE_EXTENSIONS.end());
+	for (VkExtensionProperties& ep : extentionProperties)
+	{
+		m_extentionsLeft.erase(ep.extensionName);
+	}
+	isPhysicalDeviceSuitable = isPhysicalDeviceSuitable && m_extentionsLeft.empty();
+
+	if (isPhysicalDeviceSuitable)
+	{
+		isPhysicalDeviceSuitable = isPhysicalDeviceSuitable &&
+			getQueueGraphicsFamilyIndex(physicalDevice, nullptr) &&
+			getQueuePresentFamilyIndex(physicalDevice, m_surface, nullptr, 0);
+	}
+
+	if (isPhysicalDeviceSuitable)
+	{
+		SwapChainSupportDetails swapChainDetails = getSwapChainSupportDetails(physicalDevice, m_surface, m_width, m_height);
+
+		uint32_t nSurfaceFormats = 0;
+		vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surfaceHandle, &nSurfaceFormats, nullptr);
+
+		uint32_t nPresentModes = 0;
+		vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surfaceHandle, &nPresentModes, nullptr);
+
+		isPhysicalDeviceSuitable = isPhysicalDeviceSuitable && nSurfaceFormats != 0 && nPresentModes != 0;
+	}
+
+	return isPhysicalDeviceSuitable;
+}
+
+QueueFamilyIndexes Window::getQueueFamilyIndexes(VkPhysicalDevice physicalDevice)
+{
+	QueueFamilyIndexes familyIndexes = { 0, 0 };
+	if (!getQueueGraphicsFamilyIndex(physicalDevice, &familyIndexes.graphical))
+	{
+		throw VulkanException("Device not suitable.");
+	}
+
+	if (!getQueuePresentFamilyIndex(physicalDevice, m_surface, &familyIndexes.present, familyIndexes.graphical))
+	{
+		throw VulkanException("Device not suitable.");
+	}
+
+	return familyIndexes;
+}
+
+SwapChainSupportDetails Window::getSwapChainSupportDetails(VkPhysicalDevice physicalDevice, VkSurfaceKHR surfaceHandle, uint32_t width, uint32_t height)
+{
+	SwapChainSupportDetails details;
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surfaceHandle, &details.capabilities);
+
+	std::vector<VkSurfaceFormatKHR> swapChainFormats;
+	uint32_t nSurfaceFormats = 0;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surfaceHandle, &nSurfaceFormats, nullptr);
+	if (nSurfaceFormats != 0)
+	{
+		swapChainFormats.resize(nSurfaceFormats);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surfaceHandle, &nSurfaceFormats, swapChainFormats.data());
+	}
+
+	std::vector<VkPresentModeKHR> presentModes;
+	uint32_t nPresentModes = 0;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surfaceHandle, &nPresentModes, nullptr);
+	if (nPresentModes != 0)
+	{
+		presentModes.resize(nPresentModes);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surfaceHandle, &nPresentModes, presentModes.data());
+	}
+
+	details.surfaceFormat = chooseSwapSurfaceFormat(swapChainFormats);
+	details.presentMode = chooseSwapPresentMode(presentModes);
+	details.extent = chooseSwapExtent(details.capabilities, width, height);
+
+	return details;
+}
+
+
+VkSurfaceFormatKHR Window::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& swapChainFormats)
+{
+	for (const VkSurfaceFormatKHR& format : swapChainFormats)
+	{
+		if (format.format == VK_FORMAT_B8G8R8A8_UNORM && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+		{
+			return format;
+		}
+	}
+
+	return swapChainFormats[0];
+}
+
+VkPresentModeKHR Window::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& presentModes)
+{
+	for (const VkPresentModeKHR& presentMode : presentModes)
+	{
+		if (presentMode == VK_PRESENT_MODE_MAILBOX_KHR)
+		{
+			return presentMode;
+		}
+	}
+
+	// always avalible
+	return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+VkExtent2D Window::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& swapChainCapabilities, uint32_t width, uint32_t height)
+{
+	if (swapChainCapabilities.currentExtent.width != UINT32_MAX)
+	{
+		return swapChainCapabilities.currentExtent;
+	}
+
+	VkExtent2D wantedExtent = { width, height };
+	VkExtent2D extentToUse = {};
+
+	// Average extent
+	extentToUse.width = std::max(swapChainCapabilities.maxImageExtent.width,
+		std::min(swapChainCapabilities.maxImageExtent.width, wantedExtent.width));
+	extentToUse.height = std::max(swapChainCapabilities.maxImageExtent.height,
+		std::min(swapChainCapabilities.maxImageExtent.height, wantedExtent.height));
+
+	return { 5, 20 };
+}
+
+uint32_t Window::findMemoryType(VkPhysicalDevice physicalDevice, uint32_t memoryTypeFilter, VkMemoryPropertyFlags memoryPropertyFlags)
+{
+	VkPhysicalDeviceMemoryProperties memoryProperties;
+	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memoryProperties);
+
+	for (uint32_t i = 0; i < memoryProperties.memoryTypeCount; ++i)
+	{
+		if (memoryTypeFilter & (1 << i) && (memoryProperties.memoryTypes[i].propertyFlags & memoryPropertyFlags) == memoryPropertyFlags)
+		{
+			return i;
+		}
+	}
+
+	throw VulkanException("Failed to find suitable memory type.");
+}
+
+void Window::createBuffer(VkDeviceSize size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer* buffer, VkDeviceMemory* bufferMemory)
+{
+	VkBufferCreateInfo bufferCreateInfo = {};
+	bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	bufferCreateInfo.size = size;
+	bufferCreateInfo.usage = usageFlags;
+	bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	if (vkCreateBuffer(m_logicalDevice, &bufferCreateInfo, nullptr, buffer) != VK_SUCCESS)
+	{
+		throw VulkanException("Failed to create buffer");
+	}
+
+	VkMemoryRequirements memoryRequirements;
+	vkGetBufferMemoryRequirements(m_logicalDevice, *buffer, &memoryRequirements);
+
+
+	VkMemoryAllocateInfo memoryAllocateInfo = {};
+	memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	memoryAllocateInfo.allocationSize = memoryRequirements.size;
+	memoryAllocateInfo.memoryTypeIndex = findMemoryType(
+		m_physicalDevice,
+		memoryRequirements.memoryTypeBits,
+		propertyFlags
+	);
+
+	if (vkAllocateMemory(m_logicalDevice, &memoryAllocateInfo, nullptr, bufferMemory) != VK_SUCCESS)
+	{
+		throw VulkanException("Failed to allocate buffer memory.");
+	}
+
+	vkBindBufferMemory(m_logicalDevice, *buffer, *bufferMemory, 0);
+
+}
+
+void Window::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
+{
+	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
+	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	commandBufferAllocateInfo.commandPool = m_commandPool;
+	commandBufferAllocateInfo.commandBufferCount = 1;
+
+	VkCommandBuffer transferCommandBuffer;
+	vkAllocateCommandBuffers(m_logicalDevice, &commandBufferAllocateInfo, &transferCommandBuffer);
+
+	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
+	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	vkBeginCommandBuffer(transferCommandBuffer, &commandBufferBeginInfo);
+
+	VkBufferCopy copyRegion = {};
+	copyRegion.srcOffset = 0;
+	copyRegion.dstOffset = 0;
+	copyRegion.size = size;
+	vkCmdCopyBuffer(transferCommandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
+
+	vkEndCommandBuffer(transferCommandBuffer);
+
+	VkSubmitInfo queueSubmitInfo = {};
+	queueSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	queueSubmitInfo.commandBufferCount = 1;
+	queueSubmitInfo.pCommandBuffers = &transferCommandBuffer;
+
+	vkQueueSubmit(m_graphicsQueue, 1, &queueSubmitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(m_graphicsQueue);
+
+	vkFreeCommandBuffers(m_logicalDevice, m_commandPool, 1, &transferCommandBuffer);
+}
+
 VkDevice Window::createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamilyIndexes& familyIndexes)
 {
 	std::set<uint32_t> uniqueQueueFamilies = { familyIndexes.graphical, familyIndexes.present };
@@ -1461,4 +1411,61 @@ VkPipelineShaderStageCreateInfo Window::getCreateShaderPipelineInfo(VkShaderModu
 	createInfo.pName = "main";
 
 	return createInfo;
+}
+
+
+
+void Window::cleanupSwapChain()
+{
+	for (VkFramebuffer framebuffer : m_framebuffers)
+	{
+		vkDestroyFramebuffer(m_logicalDevice, framebuffer, nullptr);
+	}
+
+	vkFreeCommandBuffers(m_logicalDevice, m_commandPool, static_cast<uint32_t>(m_commandBuffers.size()), m_commandBuffers.data());
+
+	vkDestroyPipeline(m_logicalDevice, m_graphicsPipeline, nullptr);
+	vkDestroyPipelineLayout(m_logicalDevice, m_pipelineLayout, nullptr);
+	vkDestroyRenderPass(m_logicalDevice, m_renderPass, nullptr);
+
+	for (VkImageView imageView : m_imageViews)
+	{
+		vkDestroyImageView(m_logicalDevice, imageView, nullptr);
+	}
+
+	vkDestroySwapchainKHR(m_logicalDevice, m_swapchain, nullptr);
+
+	for (int i = 0; i < m_uniformBuffers.size(); ++i)
+	{
+		vkDestroyBuffer(m_logicalDevice, m_uniformBuffers[i], nullptr);
+		vkFreeMemory(m_logicalDevice, m_uniformBuffersMemory[i], nullptr);
+	}
+
+	vkDestroyDescriptorPool(m_logicalDevice, m_descriptorPool, nullptr);
+}
+
+void Window::recreateSwapChain()
+{
+	int width = 0, height = 0;
+	glfwGetFramebufferSize(m_window, &width, &height);
+	while (width == 0 || height == 0)
+	{
+		glfwGetFramebufferSize(m_window, &width, &height);
+		glfwWaitEvents();
+	}
+
+	vkDeviceWaitIdle(m_logicalDevice);
+
+	cleanupSwapChain();
+	createSwapChain();
+	m_imageViews = createImageViews(m_logicalDevice, m_images, m_swapchainSupportDetails);
+	createRenderPass();
+	createGraphicsPipeline("shaders/bin/triangle.vert.spv", "shaders/bin/triangle.frag.spv");
+
+	createFramebuffers();
+	createUniformBuffers();
+	createDescriptorPool();
+	createDescriptorSets();
+
+	createCommandBuffers();
 }
