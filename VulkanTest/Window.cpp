@@ -254,11 +254,19 @@ void Window::draw()
 	ubo.projection[1][1] *= -1;
 
 	void* data;
-	vkMapMemory(m_logicalDevice, m_uniformBuffersMemory[imageIndex], 0, sizeof(ubo), 0, &data);
+	vkMapMemory(m_logicalDevice, m_uniformBuffersMemory[(imageIndex * 2)], 0, sizeof(ubo), 0, &data);
 	memcpy(data, &ubo, sizeof(ubo));
-	vkUnmapMemory(m_logicalDevice, m_uniformBuffersMemory[imageIndex]);
+	vkUnmapMemory(m_logicalDevice, m_uniformBuffersMemory[(imageIndex * 2)]);
 	/////////////////////////////////
+	/////////////////////////////////
+	ubo.model = glm::mat4(1);
+	ubo.model = glm::translate(ubo.model, { 1,2,-1 });
 
+	vkMapMemory(m_logicalDevice, m_uniformBuffersMemory[(imageIndex * 2) + 1], 0, sizeof(ubo), 0, &data);
+	memcpy(data, &ubo, sizeof(ubo));
+	vkUnmapMemory(m_logicalDevice, m_uniformBuffersMemory[(imageIndex * 2) + 1]);
+	/////////////////////////////////
+	
 	VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	VkPipelineStageFlags waitFlag = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -819,7 +827,7 @@ void Window::createUniformBuffers()
 {
 	VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
-	m_uniformBuffers.resize(m_images.size());
+	m_uniformBuffers.resize(m_images.size() * 2);
 	m_uniformBuffersMemory.resize(m_uniformBuffers.size());
 
 	for (int i = 0; i < m_uniformBuffers.size(); ++i)
@@ -936,8 +944,12 @@ void Window::createCommandBuffers()
 		vkCmdBindVertexBuffers(m_commandBuffers[i], 0, 1, vertexBuffers, offsets);
 		vkCmdBindIndexBuffer(m_commandBuffers[i], m_indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-		vkCmdBindDescriptorSets(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSets[i], 0, nullptr);
+		vkCmdBindDescriptorSets(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSets[(i * 2)], 0, nullptr);
 		vkCmdDrawIndexed(m_commandBuffers[i], (uint32_t)m_indexes.size(), 1, 0, 0, 0);
+		
+		vkCmdBindDescriptorSets(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSets[(i * 2) + 1], 0, nullptr);
+		vkCmdDrawIndexed(m_commandBuffers[i], (uint32_t)m_indexes.size(), 1, 0, 0, 0);
+
 		vkCmdEndRenderPass(m_commandBuffers[i]);
 
 		if (vkEndCommandBuffer(m_commandBuffers[i]) != VK_SUCCESS)
