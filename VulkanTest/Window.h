@@ -26,9 +26,9 @@ struct SwapChainSupportDetails
 
 
 struct UniformBufferObject {
-	glm::mat4 model;
-	glm::mat4 view;
-	glm::mat4 projection;
+	alignas(16) glm::mat4 model;
+	alignas(16) glm::mat4 view;
+	alignas(16) glm::mat4 projection;
 };
 
 struct Vertex
@@ -97,6 +97,8 @@ private:
 	void createFramebuffers();
 	void createCommandPool();
 
+	void createDepthResources();
+
 	void createVertexBuffer();
 	void createIndexBuffer();
 	void createUniformBuffers();
@@ -150,6 +152,10 @@ private:
 	VkShaderModule createShaderModule(const char* shaderPath);
 
 	VkPipelineShaderStageCreateInfo getCreateShaderPipelineInfo(VkShaderModule shaderModule, VkShaderStageFlagBits shaderStage);
+
+	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags featureFlags);
+	VkFormat findDepthFormat();
+	bool hasStencilComponent(VkFormat format);
 
 private:
 	int m_width;
@@ -214,6 +220,10 @@ private:
 
 	std::vector<VkBuffer> m_uniformBuffers;
 	std::vector<VkDeviceMemory> m_uniformBuffersMemory;
+
+	VkImage m_depthImage;
+	VkDeviceMemory m_depthImageMemory;
+	VkImageView m_depthImageView;
 
 #ifndef NDEBUG
 	VkDebugUtilsMessengerEXT m_debugMessenger = VK_NULL_HANDLE;

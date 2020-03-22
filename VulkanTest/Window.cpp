@@ -149,6 +149,8 @@ void Window::init()
 	createFramebuffers();
 	createCommandPool();
 
+	createDepthResources();
+
 	createVertexBuffer();
 	createIndexBuffer();
 	createUniformBuffers();
@@ -768,6 +770,14 @@ void Window::createCommandPool()
 	{
 		throw VulkanException("Failed to create command pool.");
 	}
+}
+
+void Window::createDepthResources()
+{
+
+	VkFormat depthFormat = findDepthFormat();
+
+
 }
 
 void Window::createVertexBuffer()
@@ -1425,6 +1435,40 @@ VkPipelineShaderStageCreateInfo Window::getCreateShaderPipelineInfo(VkShaderModu
 	return createInfo;
 }
 
+VkFormat Window::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags featureFlags)
+{
+	for (VkFormat format : candidates)
+	{
+		VkFormatProperties properties;
+		vkGetPhysicalDeviceFormatProperties(m_physicalDevice, format, &properties);
+
+		if (tiling == VK_IMAGE_TILING_LINEAR && (properties.linearTilingFeatures & featureFlags) == featureFlags)
+		{
+			return format;
+		}
+		else if (tiling == VK_IMAGE_TILING_OPTIMAL && (properties.optimalTilingFeatures & featureFlags) == featureFlags)
+		{
+			return format;
+		}
+
+		throw VulkanException("Failed to find supported format.");
+	}
+}
+
+VkFormat Window::findDepthFormat()
+{
+	return findSupportedFormat(
+		{ VK_FORMAT_D24_UNORM_S8_UINT, VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT },
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+	);
+}
+
+bool Window::hasStencilComponent(VkFormat format)
+{
+	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
+}
+
 
 
 void Window::cleanupSwapChain()
@@ -1473,6 +1517,8 @@ void Window::recreateSwapChain()
 	m_imageViews = createImageViews(m_logicalDevice, m_images, m_swapchainSupportDetails);
 	createRenderPass();
 	createGraphicsPipeline("shaders/bin/triangle.vert.spv", "shaders/bin/triangle.frag.spv");
+
+	createDepthResources();
 
 	createFramebuffers();
 	createUniformBuffers();
