@@ -99,6 +99,8 @@ private:
 
 	void createDepthResources();
 
+	void createTextureImage();
+
 	void createVertexBuffer();
 	void createIndexBuffer();
 	void createUniformBuffers();

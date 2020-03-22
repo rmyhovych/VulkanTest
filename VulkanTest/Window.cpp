@@ -780,6 +780,11 @@ void Window::createDepthResources()
 
 }
 
+void Window::createTextureImage()
+{
+
+}
+
 void Window::createVertexBuffer()
 {
 	VkDeviceSize bufferSize = sizeof(m_vertices[0]) * m_vertices.size();
@@ -1408,7 +1413,7 @@ void Window::setQueueCreateInfo(VkDeviceQueueCreateInfo& queueCreateInfo, uint32
 
 VkShaderModule Window::createShaderModule(const char* shaderPath)
 {
-	std::vector<char> shaderData = FileReader::read(shaderPath);
+	std::vector<char> shaderData = FileReader::readData(shaderPath);
 
 	VkShaderModuleCreateInfo createInfo = {};
 	createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;

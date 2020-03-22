@@ -28,7 +28,7 @@ std::string readRootPath()
 
 const std::string FileReader::ROOT_PATH = readRootPath();
 
-std::vector<char> FileReader::read(const char* relativePath)
+std::vector<char> FileReader::readData(const char* relativePath)
 {
 	std::string fullPath = ROOT_PATH + relativePath;
 	std::ifstream file(fullPath, std::ios::ate | std::ios::binary);
@@ -45,4 +45,13 @@ std::vector<char> FileReader::read(const char* relativePath)
 	file.close();
 	
 	return fileContent;
+}
+
+Image FileReader::readImage(const char* imagePath)
+{
+	std::string fullPath = ROOT_PATH + imagePath;
+
+	Image image;
+	image.pixels = stbi_load(fullPath.c_str(), &image.width, &image.height, &image.channels, STBI_rgb_alpha);
+	return image;
 }

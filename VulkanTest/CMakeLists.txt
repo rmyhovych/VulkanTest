@@ -39,6 +39,8 @@ target_include_directories (
 
 	${LIBS_PATH}/glfw-3.3.2/include
 	${LIBS_PATH}/glm-0.9.9.6
+	${LIBS_PATH}/stb
+
 	${VULKAN_PATH}/Include
 )
 
