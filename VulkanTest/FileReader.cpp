@@ -11,6 +11,9 @@
 #endif // _WIN32
 
 
+
+
+
 std::string readRootPath()
 {
 	std::string execPath;
@@ -50,8 +53,5 @@ std::vector<char> FileReader::readData(const char* relativePath)
 Image FileReader::readImage(const char* imagePath)
 {
 	std::string fullPath = ROOT_PATH + imagePath;
-
-	Image image;
-	image.pixels = stbi_load(fullPath.c_str(), &image.width, &image.height, &image.channels, STBI_rgb_alpha);
-	return image;
+	return Image(fullPath.c_str());
 }

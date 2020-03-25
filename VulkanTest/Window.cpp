@@ -151,6 +151,8 @@ void Window::init()
 
 	createDepthResources();
 
+	createTextureImage();
+
 	createVertexBuffer();
 	createIndexBuffer();
 	createUniformBuffers();
@@ -199,6 +201,8 @@ bool Window::isOpen()
 {
 	return glfwWindowShouldClose(m_window) == 0;
 }
+
+static glm::mat4 mooodel = glm::mat4(1);
 
 void Window::draw()
 {
@@ -250,7 +254,8 @@ void Window::draw()
 
 	/////////////////////////////////
 	UniformBufferObject ubo = {};
-	ubo.model = glm::mat4(1);
+	mooodel = glm::rotate_slow(mooodel, glm::pi<float>() / 1800, glm::vec3(0, 0, 1));
+	ubo.model = mooodel;
 	ubo.view = m_camera.getView();
 	ubo.projection = m_camera.getProjection();
 	ubo.projection[1][1] *= -1;
@@ -645,7 +650,7 @@ void Window::createGraphicsPipeline(const char* vertexPath, const char* fragment
 	rasterizerCreateInfo.rasterizerDiscardEnable = VK_FALSE;
 	rasterizerCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
 	rasterizerCreateInfo.lineWidth = 1.0f;
-	rasterizerCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizerCreateInfo.cullMode = VK_CULL_MODE_NONE;
 	rasterizerCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	// SHADOW MAPPING SHIT
 	rasterizerCreateInfo.depthBiasEnable = VK_FALSE;
@@ -782,6 +787,37 @@ void Window::createDepthResources()
 
 void Window::createTextureImage()
 {
+	Image texture = FileReader::readImage("resources/vaporwave.jpg");
+
+	VkDeviceSize textureSize = texture.width * texture.height * 4;
+	
+	VkBuffer stagingBuffer;
+	VkDeviceMemory stagingBufferMemory;
+	createBuffer(textureSize,
+		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		&stagingBuffer, &stagingBufferMemory);
+
+	void* data;
+	vkMapMemory(m_logicalDevice, stagingBufferMemory, 0, textureSize, 0, &data);
+	memcpy(data, texture.pixels, textureSize);
+	vkUnmapMemory(m_logicalDevice, stagingBufferMemory);
+
+	texture.free();
+
+	VkImageCreateInfo imageCreateInfo = {};
+	imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageCreateInfo.extent.width = texture.width;
+	imageCreateInfo.extent.height = texture.height;
+	imageCreateInfo.extent.depth = 1;
+	imageCreateInfo.mipLevels = 1;
+	imageCreateInfo.arrayLayers = 1;
+
+	imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+	imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+	imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
 }
 

@@ -13,6 +13,7 @@ set (
 	FileReader.h
 	camera/Camera.h
 	camera/FocusedCamera.h
+	Image.h
 )
 
 set (
@@ -24,6 +25,7 @@ set (
 	FileReader.cpp
 	camera/Camera.cpp
 	camera/FocusedCamera.cpp
+	Image.cpp
 )
 
 add_executable (

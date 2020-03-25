@@ -28,14 +28,35 @@ void FocusedCamera::setCenter(const glm::vec3& center)
 
 void FocusedCamera::rotate(float x, float y)
 {
-	m_theta -= y;
-	m_alpha += x;
+	m_theta += x;
+
+	if (m_theta < 0) 
+	{
+		m_theta += 2 * glm::pi<float>();
+	}
+	else if (m_theta > 2 * glm::pi<float>())
+	{
+		m_theta -= 2 * glm::pi<float>();
+	}
+
+	m_alpha += y;
+
+	if (m_alpha < 0)
+	{
+		m_alpha = 0;
+	}
+	else if (m_alpha > glm::pi<float>() - 0.001)
+	{
+		m_alpha = glm::pi<float>() - 0.001;
+	}
 
 	setCenter(m_center);
 }
 
 const glm::vec3 FocusedCamera::getEye(const glm::vec3& center, float theta, float alpha, float radius)
 {
-	glm::vec3 distance = glm::vec3(radius * sinf(theta) * cosf(alpha), radius * cosf(theta), radius * sinf(theta) * sinf(alpha));
-	return center + distance;
+	float x = cosf(theta) * sinf(alpha);
+	float y = sinf(theta) * sinf(alpha);
+	float z = cosf(alpha);
+	return center + radius * glm::vec3(x, -z, y);
 }

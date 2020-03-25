@@ -90,7 +90,9 @@ private:
 	void createDevice();
 	void createSwapChain();
 
+	std::vector<VkImageView> createImageViews(VkDevice logicalDevice, std::vector<VkImage>& images, SwapChainSupportDetails& swapchainSupportDetails) const;
 	void createGraphicsPipeline(const char* vertexPath, const char* fragmentPath);
+
 	void createRenderPass();
 	void createDescriptorSetLayout();
 
@@ -138,9 +140,6 @@ private:
 	VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& swapChainFormats);
 	VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& presentModes);
 	VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& swapChainCapabilities, uint32_t width, uint32_t height);
-
-	// IMAGE
-	std::vector<VkImageView> createImageViews(VkDevice logicalDevice, std::vector<VkImage>& images, SwapChainSupportDetails& swapchainSupportDetails) const;
 
 
 
@@ -222,6 +221,9 @@ private:
 
 	std::vector<VkBuffer> m_uniformBuffers;
 	std::vector<VkDeviceMemory> m_uniformBuffersMemory;
+	
+	VkImage m_textureImage;
+	VkDeviceMemory m_textureImageMemory;
 
 	VkImage m_depthImage;
 	VkDeviceMemory m_depthImageMemory;
