@@ -146,6 +146,7 @@ private:
 	// MEMORY SHIT
 	uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t memoryTypeFilter, VkMemoryPropertyFlags memoryPropertyFlags);
 	void createBuffer(VkDeviceSize size, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags propertyFlags, VkBuffer* buffer, VkDeviceMemory* bufferMemory);
+	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkImage* image, VkDeviceMemory* deviceMemory);
 
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
@@ -153,6 +154,9 @@ private:
 	VkShaderModule createShaderModule(const char* shaderPath);
 
 	VkPipelineShaderStageCreateInfo getCreateShaderPipelineInfo(VkShaderModule shaderModule, VkShaderStageFlagBits shaderStage);
+
+	VkCommandBuffer beginSingleTimeCommands();
+	void endSingleTimeCommand(VkCommandBuffer commandBuffer);
 
 	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags featureFlags);
 	VkFormat findDepthFormat();

@@ -8,6 +8,88 @@
 #include <string>
 #include <algorithm>
 
+
+#include <ctime>
+
+#define CALL_VK(result)														\
+    if (VK_SUCCESS != (result)) {											\
+        printf("Vulkan error. File[%s], line[%d]", __FILE__, __LINE__);		\
+        assert(false);														\
+        }
+
+
+std::streambuf* orig_buff = NULL;
+void supress_couttt()
+{
+	orig_buff = std::cout.rdbuf();
+	std::cout.rdbuf(NULL);
+}
+
+void resume_couttt()
+{
+	std::cout.rdbuf(orig_buff);
+}
+
+class Profiler
+{
+public:
+	Profiler(uint16_t nIterations = 1000) :
+		nIterations_(nIterations),
+		currentIteration_(0),
+		timePassed_(0)
+	{
+		supress_couttt();
+
+		uint32_t iterToTest = 1000;
+		std::clock_t startTime = std::clock();
+		for (uint32_t i = 0; i < iterToTest; ++i)
+		{
+			for (uint32_t j = 0; j < nIterations_; ++j)
+			{
+				start();
+				end();
+			}
+		}
+		std::clock_t timePassed = std::clock() - startTime;
+		timeToIgnore_ = (double)(timePassed / iterToTest);
+
+		resume_couttt();
+
+		startClock_ = clock();
+		timePassed_ = 0;
+		currentIteration_ = 0;
+	}
+
+	void start()
+	{
+		startClock_ = std::clock();
+	}
+
+	void end()
+	{
+		timePassed_ += (double)(std::clock() - startClock_);
+		++currentIteration_;
+
+		if (currentIteration_ == nIterations_)
+		{
+			std::cout << "\nFPS: " << 1000.0 / (((timePassed_ - timeToIgnore_) / nIterations_));
+			currentIteration_ = 0;
+			timePassed_ = 0;
+		}
+	}
+
+private:
+
+	const uint16_t nIterations_;
+	uint16_t currentIteration_;
+
+	double timeToIgnore_;
+
+	std::clock_t startClock_;
+	double timePassed_;
+};
+
+
 const uint32_t MAX_FRAMES_IN_FLIGHT = 5;
 
 const std::vector<const char*> DEVICE_EXTENSIONS({
@@ -204,8 +286,13 @@ bool Window::isOpen()
 
 static glm::mat4 mooodel = glm::mat4(1);
 
+
+
+Profiler profiler(1000);
+
 void Window::draw()
 {
+	profiler.start();
 	double xpos, ypos;
 	glfwGetCursorPos(m_window, &xpos, &ypos);
 
@@ -315,6 +402,7 @@ void Window::draw()
 	}
 
 	m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+	profiler.end();
 }
 
 VkDevice Window::getDevice()
@@ -805,19 +893,14 @@ void Window::createTextureImage()
 
 	texture.free();
 
-	VkImageCreateInfo imageCreateInfo = {};
-	imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-	imageCreateInfo.extent.width = texture.width;
-	imageCreateInfo.extent.height = texture.height;
-	imageCreateInfo.extent.depth = 1;
-	imageCreateInfo.mipLevels = 1;
-	imageCreateInfo.arrayLayers = 1;
+	createImage(
+		texture.width, texture.height,
+		VK_FORMAT_R8G8B8A8_SRGB,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		&m_textureImage, &m_textureImageMemory);
 
-	imageCreateInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-	imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	imageCreateInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
 }
 
@@ -1249,22 +1332,46 @@ void Window::createBuffer(VkDeviceSize size, VkBufferUsageFlags usageFlags, VkMe
 
 }
 
+void Window::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkImage* image, VkDeviceMemory* deviceMemory)
+{
+	VkImageCreateInfo imageCreateInfo = {};
+	imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+	imageCreateInfo.extent.width = width;
+	imageCreateInfo.extent.height = height;
+	imageCreateInfo.extent.depth = 1;
+	imageCreateInfo.mipLevels = 1;
+	imageCreateInfo.arrayLayers = 1;
+
+	imageCreateInfo.format = format;
+	imageCreateInfo.tiling = tiling;
+	imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	imageCreateInfo.usage = usage;
+	imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+	imageCreateInfo.flags = 0;
+
+	CALL_VK(vkCreateImage(m_logicalDevice, &imageCreateInfo, nullptr, image));
+
+	VkMemoryRequirements imageMemoryRequirements;
+	vkGetImageMemoryRequirements(m_logicalDevice, *image, &imageMemoryRequirements);
+
+	VkMemoryAllocateInfo memoryAllocateInfo = {};
+	memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	memoryAllocateInfo.allocationSize = imageMemoryRequirements.size;
+	memoryAllocateInfo.memoryTypeIndex = findMemoryType(
+		m_physicalDevice,
+		imageMemoryRequirements.memoryTypeBits,
+		propertyFlags);
+
+	CALL_VK(vkAllocateMemory(m_logicalDevice, &memoryAllocateInfo, nullptr, deviceMemory));
+
+	vkBindImageMemory(m_logicalDevice, *image, *deviceMemory, 0);
+}
+
 void Window::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size)
 {
-	VkCommandBufferAllocateInfo commandBufferAllocateInfo = {};
-	commandBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	commandBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	commandBufferAllocateInfo.commandPool = m_commandPool;
-	commandBufferAllocateInfo.commandBufferCount = 1;
-
-	VkCommandBuffer transferCommandBuffer;
-	vkAllocateCommandBuffers(m_logicalDevice, &commandBufferAllocateInfo, &transferCommandBuffer);
-
-	VkCommandBufferBeginInfo commandBufferBeginInfo = {};
-	commandBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-	vkBeginCommandBuffer(transferCommandBuffer, &commandBufferBeginInfo);
+	VkCommandBuffer transferCommandBuffer = beginSingleTimeCommands();
 
 	VkBufferCopy copyRegion = {};
 	copyRegion.srcOffset = 0;
@@ -1272,17 +1379,7 @@ void Window::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize siz
 	copyRegion.size = size;
 	vkCmdCopyBuffer(transferCommandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
-	vkEndCommandBuffer(transferCommandBuffer);
-
-	VkSubmitInfo queueSubmitInfo = {};
-	queueSubmitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	queueSubmitInfo.commandBufferCount = 1;
-	queueSubmitInfo.pCommandBuffers = &transferCommandBuffer;
-
-	vkQueueSubmit(m_graphicsQueue, 1, &queueSubmitInfo, VK_NULL_HANDLE);
-	vkQueueWaitIdle(m_graphicsQueue);
-
-	vkFreeCommandBuffers(m_logicalDevice, m_commandPool, 1, &transferCommandBuffer);
+	endSingleTimeCommand(transferCommandBuffer);
 }
 
 VkDevice Window::createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamilyIndexes& familyIndexes)
@@ -1475,6 +1572,44 @@ VkPipelineShaderStageCreateInfo Window::getCreateShaderPipelineInfo(VkShaderModu
 
 	return createInfo;
 }
+
+
+///////////////////////////////////////////////////////////////////////
+VkCommandBuffer Window::beginSingleTimeCommands()
+{
+	VkCommandBufferAllocateInfo  cmdBufferAllocateInfo = {};
+	cmdBufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	cmdBufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	cmdBufferAllocateInfo.commandPool = m_commandPool;
+	cmdBufferAllocateInfo.commandBufferCount = 1;
+
+	VkCommandBuffer commandBuffer;
+	CALL_VK(vkAllocateCommandBuffers(m_logicalDevice, &cmdBufferAllocateInfo, &commandBuffer));
+
+	VkCommandBufferBeginInfo cmdBufferBeginInfo = {};
+	cmdBufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	cmdBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	CALL_VK(vkBeginCommandBuffer(commandBuffer, &cmdBufferBeginInfo));
+
+	return commandBuffer;
+}
+
+void Window::endSingleTimeCommand(VkCommandBuffer commandBuffer)
+{
+	CALL_VK(vkEndCommandBuffer(commandBuffer));
+
+	VkSubmitInfo submitInfo = {};
+	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submitInfo.commandBufferCount = 1;
+	submitInfo.pCommandBuffers = &commandBuffer;
+
+	vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+	vkQueueWaitIdle(m_graphicsQueue);
+
+	vkFreeCommandBuffers(m_logicalDevice, m_commandPool, 1, &commandBuffer);
+}
+///////////////////////////////////////////////////////////////////////
 
 VkFormat Window::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags featureFlags)
 {
