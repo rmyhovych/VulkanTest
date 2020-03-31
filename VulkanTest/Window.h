@@ -102,6 +102,7 @@ private:
 	void createDepthResources();
 
 	void createTextureImage();
+	void createTextureImageView();
 
 	void createVertexBuffer();
 	void createIndexBuffer();
@@ -149,14 +150,18 @@ private:
 	void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags propertyFlags, VkImage* image, VkDeviceMemory* deviceMemory);
 
 	void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-
+	void copyBufferToImage(VkBuffer srcBuffer, VkImage dstImage, uint32_t width, uint32_t height);
 	
 	VkShaderModule createShaderModule(const char* shaderPath);
 
 	VkPipelineShaderStageCreateInfo getCreateShaderPipelineInfo(VkShaderModule shaderModule, VkShaderStageFlagBits shaderStage);
 
+	///////////////////////////////////////////////////////////////////////
 	VkCommandBuffer beginSingleTimeCommands();
 	void endSingleTimeCommand(VkCommandBuffer commandBuffer);
+	///////////////////////////////////////////////////////////////////////
+
+	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 
 	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags featureFlags);
 	VkFormat findDepthFormat();
@@ -228,6 +233,7 @@ private:
 	
 	VkImage m_textureImage;
 	VkDeviceMemory m_textureImageMemory;
+	VkImageView m_textureImageView;
 
 	VkImage m_depthImage;
 	VkDeviceMemory m_depthImageMemory;

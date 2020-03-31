@@ -18,18 +18,6 @@
         }
 
 
-std::streambuf* orig_buff = NULL;
-void supress_couttt()
-{
-	orig_buff = std::cout.rdbuf();
-	std::cout.rdbuf(NULL);
-}
-
-void resume_couttt()
-{
-	std::cout.rdbuf(orig_buff);
-}
-
 class Profiler
 {
 public:
@@ -38,7 +26,8 @@ public:
 		currentIteration_(0),
 		timePassed_(0)
 	{
-		supress_couttt();
+		std::streambuf* orig_buff = std::cout.rdbuf();
+		std::cout.rdbuf(NULL);
 
 		uint32_t iterToTest = 1000;
 		std::clock_t startTime = std::clock();
@@ -53,7 +42,7 @@ public:
 		std::clock_t timePassed = std::clock() - startTime;
 		timeToIgnore_ = (double)(timePassed / iterToTest);
 
-		resume_couttt();
+		std::cout.rdbuf(orig_buff);
 
 		startClock_ = clock();
 		timePassed_ = 0;
@@ -234,6 +223,7 @@ void Window::init()
 	createDepthResources();
 
 	createTextureImage();
+	createTextureImageView();
 
 	createVertexBuffer();
 	createIndexBuffer();
@@ -248,6 +238,9 @@ void Window::init()
 void Window::destroy()
 {
 	cleanupSwapChain();
+
+	vkDestroyImage(m_logicalDevice, m_textureImage, nullptr);
+	vkFreeMemory(m_logicalDevice, m_textureImageMemory, nullptr);
 
 	vkDestroyDescriptorSetLayout(m_logicalDevice, m_uboDescriptorSetLayout, nullptr);
 
@@ -288,13 +281,21 @@ static glm::mat4 mooodel = glm::mat4(1);
 
 
 
-Profiler profiler(1000);
+Profiler profiler(500);
+
+#include <thread>
 
 void Window::draw()
 {
 	profiler.start();
 	double xpos, ypos;
 	glfwGetCursorPos(m_window, &xpos, &ypos);
+
+	if (glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS)
+	{
+		printf("sleep\n");
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	}
 
 	bool isPressed = glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
 	if (isPressed && !m_isPressed)
@@ -901,6 +902,16 @@ void Window::createTextureImage()
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		&m_textureImage, &m_textureImageMemory);
 
+	transitionImageLayout(m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	copyBufferToImage(stagingBuffer, m_textureImage, texture.width, texture.height);
+	transitionImageLayout(m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	vkDestroyBuffer(m_logicalDevice, stagingBuffer, nullptr);
+	vkFreeMemory(m_logicalDevice, stagingBufferMemory, nullptr);
+}
+
+void Window::createTextureImageView()
+{
 
 }
 
@@ -1382,6 +1393,29 @@ void Window::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize siz
 	endSingleTimeCommand(transferCommandBuffer);
 }
 
+void Window::copyBufferToImage(VkBuffer srcBuffer, VkImage dstImage, uint32_t width, uint32_t height)
+{
+	VkCommandBuffer transferBuffer = beginSingleTimeCommands();
+
+	VkBufferImageCopy copyRegion = {};
+	copyRegion.bufferOffset = 0;
+	copyRegion.bufferRowLength = 0;
+	copyRegion.bufferImageHeight = 0;
+
+	VkImageSubresourceLayers& subresource = copyRegion.imageSubresource;
+	subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	subresource.mipLevel = 0;
+	subresource.baseArrayLayer = 0;
+	subresource.layerCount = 1;
+
+	copyRegion.imageOffset = { 0, 0, 0 };
+	copyRegion.imageExtent = { width, height, 1 };
+
+	vkCmdCopyBufferToImage(transferBuffer, srcBuffer, dstImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+
+	endSingleTimeCommand(transferBuffer);
+}
+
 VkDevice Window::createLogicalDevice(VkPhysicalDevice physicalDevice, QueueFamilyIndexes& familyIndexes)
 {
 	std::set<uint32_t> uniqueQueueFamilies = { familyIndexes.graphical, familyIndexes.present };
@@ -1610,6 +1644,63 @@ void Window::endSingleTimeCommand(VkCommandBuffer commandBuffer)
 	vkFreeCommandBuffers(m_logicalDevice, m_commandPool, 1, &commandBuffer);
 }
 ///////////////////////////////////////////////////////////////////////
+
+void Window::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout)
+{
+	VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+	VkImageMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.oldLayout = oldLayout;
+	barrier.newLayout = newLayout;
+
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+	barrier.image = image;
+
+	VkImageSubresourceRange& subresourceRange = barrier.subresourceRange;
+	subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	subresourceRange.baseMipLevel = 0;
+	subresourceRange.levelCount = 1;
+	subresourceRange.baseArrayLayer = 0;
+	subresourceRange.layerCount = 1;
+
+	VkPipelineStageFlags sourceStage;
+	VkPipelineStageFlags destinationStage;
+
+
+	if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	}
+	else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}
+	else {
+		throw VulkanException("unsupported layout transition!");
+	}
+
+
+	vkCmdPipelineBarrier(
+		commandBuffer,
+		sourceStage, destinationStage,
+		0,
+		0, nullptr,
+		0, nullptr,
+		1, &barrier
+	);
+
+	endSingleTimeCommand(commandBuffer);
+}
+
 
 VkFormat Window::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags featureFlags)
 {
