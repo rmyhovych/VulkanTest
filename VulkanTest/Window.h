@@ -90,7 +90,7 @@ private:
 	void createDevice();
 	void createSwapChain();
 
-	std::vector<VkImageView> createImageViews(VkDevice logicalDevice, std::vector<VkImage>& images, SwapChainSupportDetails& swapchainSupportDetails) const;
+	std::vector<VkImageView> createImageViews(VkDevice logicalDevice, std::vector<VkImage>& images, SwapChainSupportDetails& swapchainSupportDetails);
 	void createGraphicsPipeline(const char* vertexPath, const char* fragmentPath);
 
 	void createRenderPass();
@@ -103,6 +103,7 @@ private:
 
 	void createTextureImage();
 	void createTextureImageView();
+	void createTextureSampler();
 
 	void createVertexBuffer();
 	void createIndexBuffer();
@@ -162,6 +163,8 @@ private:
 	///////////////////////////////////////////////////////////////////////
 
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+
+	VkImageView createImageView(VkImage image, VkFormat format);
 
 	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags featureFlags);
 	VkFormat findDepthFormat();
@@ -234,6 +237,7 @@ private:
 	VkImage m_textureImage;
 	VkDeviceMemory m_textureImageMemory;
 	VkImageView m_textureImageView;
+	VkSampler m_textureSampler;
 
 	VkImage m_depthImage;
 	VkDeviceMemory m_depthImageMemory;
