@@ -87,6 +87,7 @@ const std::vector<const char*> DEVICE_EXTENSIONS({
 
 
 #ifndef NDEBUG
+/*
 static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 	VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -99,6 +100,56 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	}
 	return VK_FALSE;
 }
+*/
+
+VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+	VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+	VkDebugUtilsMessageTypeFlagsEXT messageTypes,
+	const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
+	void* userData)
+{
+	const char validation[] = "VALIDATION";
+	const char performance[] = "Performance";
+	const char error[] = "ERROR";
+	const char warning[] = "WARNING";
+	const char unknownType[] = "UNKNOWN_TYPE";
+	const char unknownSeverity[] = "UNKNOWN_SEVERITY";
+	const char* typeString = unknownType;
+	const char* severityString = unknownSeverity;
+	const char* messageIdName = callbackData->pMessageIdName;
+	int32_t messageIdNumber = callbackData->messageIdNumber;
+	const char* message = callbackData->pMessage;
+
+	if (messageSeverity < VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+	{
+		return VK_FALSE;
+	}
+
+	if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+		severityString = error;
+	}
+	else if (messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+		severityString = warning;
+	}
+	if (messageTypes & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT) {
+		typeString = validation;
+	}
+	else if (messageTypes & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT) {
+		typeString = performance;
+	}
+
+	printf("\n%s %s:\n\t[%s] Code %i : %s\n\n",
+		typeString,
+		severityString,
+		messageIdName,
+		messageIdNumber,
+		message);
+
+	// Returning false tells the layer not to stop when the event occurs, so
+	// they see the same behavior with and without validation layers enabled.
+	return VK_FALSE;
+}
+
 
 VkResult vkCreateDebugUtilsMessengerEXT_PROXY(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
 	const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger)
@@ -164,10 +215,10 @@ Window::Window(int width, int heigth) :
 	m_currentFrameIndex(0),
 
 	m_vertices({
-		{{-0.5f, -0.5f, 0.0f }, {1.0f, 0.0f, 0.0f}},
-		{{0.5f, -0.5f, 0.0f }, {0.0f, 1.0f, 0.0f}},
-		{{0.5f, 0.5f, 0.0f }, {0.0f, 0.0f, 1.0f}},
-		{{-0.5f, 0.5f, 0.0f }, {1.0f, 1.0f, 1.0f}},
+		{{-0.5f, -0.5f, 0.0f }, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f}},
+		{{0.5f, -0.5f, 0.0f }, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},
+		{{0.5f, 0.5f, 0.0f }, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}},
+		{{-0.5f, 0.5f, 0.0f }, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}},
 		}),
 
 	m_indexes({ 0, 1, 2, 0, 2, 3 })
@@ -643,18 +694,26 @@ void Window::createRenderPass()
 
 void Window::createDescriptorSetLayout()
 {
-	VkDescriptorSetLayoutBinding uboLayoutBinding = {};
+	std::vector<VkDescriptorSetLayoutBinding> bindings(2, VkDescriptorSetLayoutBinding());
+
+	VkDescriptorSetLayoutBinding& uboLayoutBinding = bindings[0];
 	uboLayoutBinding.binding = 0;
 	uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	uboLayoutBinding.descriptorCount = 1;
 	uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	uboLayoutBinding.pImmutableSamplers = nullptr;
 
+	VkDescriptorSetLayoutBinding& samplerLayoutBinding = bindings[1];
+	samplerLayoutBinding.binding = 1;
+	samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	samplerLayoutBinding.descriptorCount = 1;
+	samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+	samplerLayoutBinding.pImmutableSamplers = nullptr;
 
 	VkDescriptorSetLayoutCreateInfo descriptorSetCreateInfo = {};
 	descriptorSetCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptorSetCreateInfo.bindingCount = 1;
-	descriptorSetCreateInfo.pBindings = &uboLayoutBinding;
+	descriptorSetCreateInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+	descriptorSetCreateInfo.pBindings = bindings.data();
 
 	if (vkCreateDescriptorSetLayout(m_logicalDevice, &descriptorSetCreateInfo, nullptr, &m_uboDescriptorSetLayout) != VK_SUCCESS)
 	{
@@ -679,13 +738,13 @@ void Window::createGraphicsPipeline(const char* vertexPath, const char* fragment
 	///////////////////////////////
 
 	VkVertexInputBindingDescription bindingDescription = Vertex::getBindingDescription();
-	std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions = Vertex::getAttributeDescriptions();
+	std::vector<VkVertexInputAttributeDescription> attributeDescriptions = Vertex::getAttributeDescriptions();
 
 	VkPipelineVertexInputStateCreateInfo vertexInputCreateInfo = {};
 	vertexInputCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertexInputCreateInfo.vertexBindingDescriptionCount = 1;
 	vertexInputCreateInfo.pVertexBindingDescriptions = &bindingDescription;
-	vertexInputCreateInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
+	vertexInputCreateInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
 	vertexInputCreateInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
 
@@ -996,15 +1055,21 @@ void Window::createUniformBuffers()
 
 void Window::createDescriptorPool()
 {
-	VkDescriptorPoolSize descriptorPoolSize = {};
-	descriptorPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	descriptorPoolSize.descriptorCount = (uint32_t)m_uniformBuffers.size();
+	std::vector<VkDescriptorPoolSize> poolSizes(2, VkDescriptorPoolSize());
+
+	VkDescriptorPoolSize& uboPoolSize = poolSizes[0];
+	uboPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	uboPoolSize.descriptorCount = (uint32_t)m_uniformBuffers.size();
+
+	VkDescriptorPoolSize& samplerPoolSize = poolSizes[1];
+	samplerPoolSize.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	samplerPoolSize.descriptorCount = (uint32_t)m_uniformBuffers.size();
 
 	VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {};
 	descriptorPoolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	descriptorPoolCreateInfo.poolSizeCount = 1;
-	descriptorPoolCreateInfo.pPoolSizes = &descriptorPoolSize;
-	descriptorPoolCreateInfo.maxSets = (uint32_t)m_uniformBuffers.size();
+	descriptorPoolCreateInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+	descriptorPoolCreateInfo.pPoolSizes = poolSizes.data();
+	descriptorPoolCreateInfo.maxSets = static_cast<uint32_t>(m_uniformBuffers.size());
 	descriptorPoolCreateInfo.flags = 0;
 
 	if (vkCreateDescriptorPool(m_logicalDevice, &descriptorPoolCreateInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
@@ -1031,24 +1096,43 @@ void Window::createDescriptorSets()
 
 	for (int i = m_descriptorSets.size() - 1; i >= 0; --i)
 	{
+		std::vector<VkWriteDescriptorSet> descriptorWrites(2, VkWriteDescriptorSet());
+
+
 		VkDescriptorBufferInfo descriptorBufferInfo = {};
 		descriptorBufferInfo.buffer = m_uniformBuffers[i];
 		descriptorBufferInfo.offset = 0;
 		descriptorBufferInfo.range = sizeof(UniformBufferObject);
 
-		VkWriteDescriptorSet descriptorWrite = {};
-		descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptorWrite.dstSet = m_descriptorSets[i];
-		descriptorWrite.dstBinding = 0;
-		descriptorWrite.dstArrayElement = 0;
+		VkWriteDescriptorSet& uboDescriptorWrite = descriptorWrites[0];
+		uboDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		uboDescriptorWrite.dstSet = m_descriptorSets[i];
+		uboDescriptorWrite.dstBinding = 0;
+		uboDescriptorWrite.dstArrayElement = 0;
+		uboDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		uboDescriptorWrite.descriptorCount = 1;
+		uboDescriptorWrite.pBufferInfo = &descriptorBufferInfo;
+		uboDescriptorWrite.pImageInfo = nullptr;
+		uboDescriptorWrite.pTexelBufferView = nullptr;
 
-		descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptorWrite.descriptorCount = 1;
-		descriptorWrite.pBufferInfo = &descriptorBufferInfo;
-		descriptorWrite.pImageInfo = nullptr;
-		descriptorWrite.pTexelBufferView = nullptr;
 
-		vkUpdateDescriptorSets(m_logicalDevice, 1, &descriptorWrite, 0, nullptr);
+		VkDescriptorImageInfo imageInfo = {};
+		imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		imageInfo.imageView = m_textureImageView;
+		imageInfo.sampler = m_textureSampler;
+
+		VkWriteDescriptorSet& imageDescriptorWrite = descriptorWrites[1];
+		imageDescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		imageDescriptorWrite.dstSet = m_descriptorSets[i];
+		imageDescriptorWrite.dstBinding = 1;
+		imageDescriptorWrite.dstArrayElement = 0;
+		imageDescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		imageDescriptorWrite.descriptorCount = 1;
+		imageDescriptorWrite.pBufferInfo = nullptr;
+		imageDescriptorWrite.pImageInfo = &imageInfo;
+		imageDescriptorWrite.pTexelBufferView = nullptr;
+
+		vkUpdateDescriptorSets(m_logicalDevice, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 	}
 }
 
