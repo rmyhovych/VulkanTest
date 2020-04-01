@@ -192,6 +192,10 @@ void framebufferResizeCallback(GLFWwindow* window, int width, int height)
 }
 
 
+
+const VkFormat IMAGE_FORMAT = VK_FORMAT_R8G8B8A8_UNORM;
+
+
 Window::Window(int width, int heigth) :
 	m_xpos(0),
 	m_ypos(0),
@@ -915,7 +919,7 @@ void Window::createDepthResources()
 
 void Window::createTextureImage()
 {
-	Image texture = FileReader::readImage("resources/vaporwave.jpg");
+	Image texture = FileReader::readImage("resources/suicide.jpg");
 
 	VkDeviceSize textureSize = texture.width * texture.height * 4;
 	
@@ -935,15 +939,15 @@ void Window::createTextureImage()
 
 	createImage(
 		texture.width, texture.height,
-		VK_FORMAT_R8G8B8A8_SRGB,
+		IMAGE_FORMAT,
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		&m_textureImage, &m_textureImageMemory);
 
-	transitionImageLayout(m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	transitionImageLayout(m_textureImage, IMAGE_FORMAT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	copyBufferToImage(stagingBuffer, m_textureImage, texture.width, texture.height);
-	transitionImageLayout(m_textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	transitionImageLayout(m_textureImage, IMAGE_FORMAT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	vkDestroyBuffer(m_logicalDevice, stagingBuffer, nullptr);
 	vkFreeMemory(m_logicalDevice, stagingBufferMemory, nullptr);
@@ -951,7 +955,7 @@ void Window::createTextureImage()
 
 void Window::createTextureImageView()
 {
-	m_textureImageView = createImageView(m_textureImage, VK_FORMAT_R8G8B8A8_SRGB);
+	m_textureImageView = createImageView(m_textureImage, IMAGE_FORMAT);
 }
 
 void Window::createTextureSampler()
@@ -1352,7 +1356,7 @@ VkSurfaceFormatKHR Window::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFo
 {
 	for (const VkSurfaceFormatKHR& format : swapChainFormats)
 	{
-		if (format.format == VK_FORMAT_B8G8R8A8_UNORM && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+		if (format.format == IMAGE_FORMAT && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
 		{
 			return format;
 		}
