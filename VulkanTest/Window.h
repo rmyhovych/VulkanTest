@@ -103,10 +103,10 @@ private:
 	void createRenderPass();
 	void createDescriptorSetLayout();
 
+	void createDepthResources();
+
 	void createFramebuffers();
 	void createCommandPool();
-
-	void createDepthResources();
 
 	void createTextureImage();
 	void createTextureImageView();
@@ -171,7 +171,7 @@ private:
 
 	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
 
-	VkImageView createImageView(VkImage image, VkFormat format);
+	VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 
 	VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags featureFlags);
 	VkFormat findDepthFormat();
